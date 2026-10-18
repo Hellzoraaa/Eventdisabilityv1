@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+  <!-- Background Circle Base -->
+  <circle cx="100" cy="100" r="96" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5" />
+  
+  <!-- Outer Circular Text Track -->
+  <defs>
+    <!-- Top Arc Path for YAYASAN AMANAH -->
+    <path id="topTextArc" d="M 22 100 A 78 78 0 0 1 178 100" fill="none" />
+    <!-- Bottom Arc Path for PEDULI UMMAT -->
+    <path id="bottomTextArc" d="M 178 100 A 78 78 0 0 1 22 100" fill="none" />
+    <!-- Globe Clip -->
+    <clipPath id="globeClip">
+      <circle cx="100" cy="98" r="52" />
+    </clipPath>
+  </defs>
+
+  <!-- Golden Wheat / Rice Wreath (Padi & Kapas) Background -->
+  <g opacity="0.9">
+    <!-- Left Wheat Garland -->
+    <path d="M 46 95 C 44 65 60 40 92 32" stroke="#EAB308" stroke-width="7" stroke-linecap="round" fill="none" stroke-dasharray="1 8" />
+    <path d="M 48 97 C 46 67 62 42 94 34" stroke="#FACC15" stroke-width="5" stroke-linecap="round" fill="none" stroke-dasharray="2 7" />
+    <!-- Right Wheat Garland -->
+    <path d="M 154 95 C 156 65 140 40 108 32" stroke="#EAB308" stroke-width="7" stroke-linecap="round" fill="none" stroke-dasharray="1 8" />
+    <path d="M 152 97 C 154 67 138 42 106 34" stroke="#FACC15" stroke-width="5" stroke-linecap="round" fill="none" stroke-dasharray="2 7" />
+  </g>
+
+  <!-- Top Golden Star -->
+  <polygon points="100,24 103,32 111,32 105,37 107,45 100,40 93,45 95,37 89,32 97,32" fill="#EAB308" stroke="#CA8A04" stroke-width="0.8" />
+
+  <!-- Side Red Crescent and Stars -->
+  <!-- Left Red Crescent -->
+  <g transform="translate(18, 98) scale(0.65)">
+    <circle cx="10" cy="10" r="10" fill="#DC2626" />
+    <circle cx="13" cy="10" r="8" fill="#FFFFFF" />
+    <polygon points="17,10 18.5,12.5 21,12.5 19,14 20,16.5 17.5,15 15,16.5 16,14 14,12.5 16.5,12.5" fill="#DC2626" />
+  </g>
+  <!-- Right Red Crescent -->
+  <g transform="translate(162, 98) scale(0.65)">
+    <circle cx="10" cy="10" r="10" fill="#DC2626" />
+    <circle cx="7" cy="10" r="8" fill="#FFFFFF" />
+    <polygon points="3,10 4.5,12.5 7,12.5 5,14 6,16.5 3.5,15 1,16.5 2,14 0,12.5 2.5,12.5" fill="#DC2626" />
+  </g>
+
+  <!-- Blue Globe -->
+  <g>
+    <circle cx="100" cy="98" r="52" fill="#1D4ED8" stroke="#1E40AF" stroke-width="2" />
+    <!-- Globe Latitude & Longitude Grid Lines -->
+    <g clip-path="url(#globeClip)" stroke="#93C5FD" stroke-width="1.2" fill="none" opacity="0.75">
+      <!-- Latitudes -->
+      <line x1="40" y1="98" x2="160" y2="98" />
+      <ellipse cx="100" cy="98" rx="52" ry="24" />
+      <ellipse cx="100" cy="98" rx="52" ry="40" />
+      <!-- Longitudes -->
+      <line x1="100" y1="40" x2="100" y2="156" />
+      <ellipse cx="100" cy="98" rx="24" ry="52" />
+      <ellipse cx="100" cy="98" rx="42" ry="52" />
+    </g>
+  </g>
+
+  <!-- Golden Triangle Emblem in Center -->
+  <g>
+    <!-- Triangle Outline / Frame -->
+    <polygon points="100,46 142,126 58,126" fill="#FACC15" stroke="#CA8A04" stroke-width="2.5" />
+    <!-- Inner Dark / Blue Triangle Cavity with Indonesia Map Silhouette -->
+    <polygon points="100,60 131,120 69,120" fill="#1E3A8A" stroke="#B45309" stroke-width="1.5" />
+    <!-- White Archipelago Silhouette Motif -->
+    <path d="M 78 96 Q 84 94 90 98 Q 96 95 104 96 Q 112 94 122 97" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.9" />
+    <circle cx="82" cy="99" r="1.5" fill="#FFFFFF" />
+    <circle cx="95" cy="102" r="1.8" fill="#FFFFFF" />
+    <circle cx="108" cy="100" r="1.5" fill="#FFFFFF" />
+    <circle cx="118" cy="99" r="1.8" fill="#FFFFFF" />
+  </g>
+
+  <!-- Open Quran (Mushaf) at Bottom on Rehal Stand -->
+  <g transform="translate(0, 10)">
+    <!-- Quran Pages / Open Book -->
+    <path d="M 100 138 C 90 132 78 132 68 136 C 68 140 88 143 100 148 C 112 143 132 140 132 136 C 122 132 110 132 100 138 Z" fill="#16A34A" stroke="#15803D" stroke-width="1.5" />
+    <!-- Page Ribs and Quran Spines -->
+    <path d="M 100 138 L 100 148" stroke="#14532D" stroke-width="2" />
+    <path d="M 72 136 C 82 133 92 134 98 138" stroke="#FFFFFF" stroke-width="1.2" fill="none" />
+    <path d="M 128 136 C 118 133 108 134 102 138" stroke="#FFFFFF" stroke-width="1.2" fill="none" />
+    <!-- Wooden Rehal Crossing (Green/Wood) -->
+    <path d="M 76 150 L 124 150" stroke="#15803D" stroke-width="2" stroke-linecap="round" />
+  </g>
+
+  <!-- Circular Perimeter Typography -->
+  <text font-family="'Arial', 'Helvetica', sans-serif" font-weight="900" font-size="12" fill="#111827" letter-spacing="3.2">
+    <textPath href="#topTextArc" startOffset="50%" text-anchor="middle">
+      YAYASAN AMANAH
+    </textPath>
+  </text>
+  <text font-family="'Arial', 'Helvetica', sans-serif" font-weight="900" font-size="12.5" fill="#111827" letter-spacing="3.5">
+    <textPath href="#bottomTextArc" startOffset="50%" text-anchor="middle">
+      PEDULI UMMAT
+    </textPath>
+  </text>
+</svg>

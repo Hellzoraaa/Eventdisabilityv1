@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400">
+  <defs>
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#003444" />
+      <stop offset="50%" stop-color="#004d61" />
+      <stop offset="100%" stop-color="#002733" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.25" />
+      <stop offset="50%" stop-color="#fbbf24" stop-opacity="0.45" />
+      <stop offset="100%" stop-color="#d97706" stop-opacity="0.2" />
+    </linearGradient>
+    <pattern id="islamicStar" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M30 0 L37 23 L60 30 L37 37 L30 60 L23 37 L0 30 L23 23 Z" fill="none" stroke="#fbbf24" stroke-width="0.75" stroke-opacity="0.18" />
+      <circle cx="30" cy="30" r="8" fill="none" stroke="#38bdf8" stroke-width="0.5" stroke-opacity="0.2" />
+    </pattern>
+  </defs>
+
+  <!-- Background Base -->
+  <rect width="1200" height="400" fill="url(#skyGrad)" />
+
+  <!-- Stars / Geometry Texture -->
+  <rect width="1200" height="400" fill="url(#islamicStar)" />
+
+  <!-- Elegant Mosques / Arch Silhouette in Distance -->
+  <g fill="#001e28" opacity="0.55">
+    <path d="M0 400 L0 340 C100 340 120 320 150 280 C180 240 200 240 230 280 C260 320 280 340 380 340 L380 400 Z" />
+    <!-- Minaret 1 -->
+    <rect x="70" y="160" width="16" height="180" rx="3" />
+    <polygon points="70,160 78,110 86,160" />
+    <!-- Dome Left -->
+    <path d="M140 340 C140 270 170 250 190 220 C210 250 240 270 240 340 Z" />
+    <!-- Center Grand Arch Silhouette -->
+    <path d="M480 400 L480 300 C480 220 540 180 600 140 C660 180 720 220 720 300 L720 400 Z" opacity="0.4" />
+    <path d="M520 400 L520 320 C520 260 560 220 600 190 C640 220 680 260 680 320 L680 400 Z" fill="#00141b" opacity="0.7" />
+    <!-- Right Dome & Minaret -->
+    <rect x="1110" y="160" width="16" height="180" rx="3" />
+    <polygon points="1110,160 1118,110 1126,160" />
+    <path d="M960 340 C960 270 990 250 1010 220 C1030 250 1060 270 1060 340 Z" />
+  </g>
+
+  <!-- Golden Horizon Light Accent -->
+  <ellipse cx="600" cy="400" rx="450" ry="120" fill="url(#goldGrad)" />
+  <circle cx="600" cy="120" r="1" fill="#fff" filter="drop-shadow(0 0 8px #fbbf24)" />
+</svg>

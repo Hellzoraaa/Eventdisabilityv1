@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#006680"/>
+      <stop offset="50%" stop-color="#005064"/>
+      <stop offset="100%" stop-color="#003543"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff0a6"/>
+      <stop offset="40%" stop-color="#e5c158"/>
+      <stop offset="100%" stop-color="#b88f28"/>
+    </linearGradient>
+    <linearGradient id="pageGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f0f6f6"/>
+    </linearGradient>
+    <filter id="subtleShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Base Rounded Container with Gold Rim -->
+  <rect x="3" y="3" width="114" height="114" rx="26" fill="url(#bgGrad)" stroke="url(#goldGrad)" stroke-width="3" filter="url(#subtleShadow)"/>
+
+  <!-- Inner Decorative Islamic Pattern Border -->
+  <rect x="8" y="8" width="104" height="104" rx="21" fill="none" stroke="url(#goldGrad)" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.6"/>
+
+  <!-- Holy Light Glow Rays at Top -->
+  <circle cx="60" cy="30" r="14" fill="#ffd700" opacity="0.15"/>
+  
+  <!-- Crescent & Star (Nur Al-Quran) -->
+  <g transform="translate(60, 26)" filter="url(#subtleShadow)">
+    <path d="M-1.5,-8 A7,7 0 1,0 6.5,4 A5.5,5.5 0 1,1 -1.5,-8 Z" fill="url(#goldGrad)"/>
+    <polygon points="5.5,-3 7,-0.5 9.5,-0.5 7.5,1 8.5,3.5 6,-1.8 4,-1" fill="url(#goldGrad)" transform="scale(0.85) translate(0.5,-1)"/>
+  </g>
+
+  <!-- Rehal / Book Stand Under Quran -->
+  <g stroke="url(#goldGrad)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M34,88 L60,74 L86,88"/>
+    <path d="M42,88 L60,98 L78,88"/>
+    <!-- Central Stand Knot -->
+    <circle cx="60" cy="74" r="2.2" fill="#ffd700"/>
+  </g>
+
+  <!-- Symmetrical Open Mushaf / Holy Quran (Tegak & Lurus Sempurna) -->
+  <!-- Left Page Pages Shadow & Depth -->
+  <path d="M22,46 C32,43 46,45 59,51 L59,76 C46,70 32,68 22,71 Z" fill="#d1e3e6" opacity="0.7"/>
+  <path d="M98,46 C88,43 74,45 61,51 L61,76 C74,70 88,68 98,71 Z" fill="#d1e3e6" opacity="0.7"/>
+
+  <!-- Main Pages (Bright Clean White with Golden Borders) -->
+  <!-- Left Page -->
+  <path d="M23,43 C33,40 47,42 59,48 L59,73 C47,67 33,65 23,68 Z" fill="url(#pageGrad)" stroke="url(#goldGrad)" stroke-width="1.6"/>
+  <!-- Right Page -->
+  <path d="M97,43 C87,40 73,42 61,48 L61,73 C73,67 87,65 97,68 Z" fill="url(#pageGrad)" stroke="url(#goldGrad)" stroke-width="1.6"/>
+
+  <!-- Quran Spine / Book Binding Center -->
+  <path d="M59,48 L61,48 L61,73 L59,73 Z" fill="#b88f28"/>
+
+  <!-- Golden Bookmark Ribbon (Pita Pembatas Al-Quran) -->
+  <path d="M60,48 L60,78 L57.5,75.5 L55,78 L55,49" fill="url(#goldGrad)"/>
+
+  <!-- Quran Calligraphy / Verses Representation Lines (Left Page) -->
+  <g stroke="#004d61" stroke-width="1.4" stroke-linecap="round" opacity="0.75">
+    <line x1="30" y1="48" x2="52" y2="52"/>
+    <line x1="29" y1="53" x2="52" y2="57"/>
+    <line x1="29" y1="58" x2="52" y2="62"/>
+    <line x1="32" y1="63" x2="48" y2="66"/>
+  </g>
+
+  <!-- Quran Calligraphy / Verses Representation Lines (Right Page) -->
+  <g stroke="#004d61" stroke-width="1.4" stroke-linecap="round" opacity="0.75">
+    <line x1="68" y1="52" x2="90" y2="48"/>
+    <line x1="68" y1="57" x2="91" y2="53"/>
+    <line x1="68" y1="62" x2="91" y2="58"/>
+    <line x1="72" y1="66" x2="88" y2="63"/>
+  </g>
+
+  <!-- Central Quran Verse Star Ayah Marker -->
+  <circle cx="41" cy="53" r="1.8" fill="url(#goldGrad)"/>
+  <circle cx="79" cy="57" r="1.8" fill="url(#goldGrad)"/>
+
+  <!-- Inclusivity & Light Glow Dots (Disability Heart/Care Symbolism) -->
+  <circle cx="28" cy="98" r="2" fill="url(#goldGrad)" opacity="0.8"/>
+  <circle cx="92" cy="98" r="2" fill="url(#goldGrad)" opacity="0.8"/>
+</svg>

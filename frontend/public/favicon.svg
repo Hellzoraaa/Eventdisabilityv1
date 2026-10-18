@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="favBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#006680"/>
+      <stop offset="100%" stop-color="#003543"/>
+    </linearGradient>
+    <linearGradient id="favGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff0a6"/>
+      <stop offset="50%" stop-color="#e5c158"/>
+      <stop offset="100%" stop-color="#b88f28"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Container -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#favBg)" stroke="url(#favGold)" stroke-width="2"/>
+
+  <!-- Star & Crescent at Top -->
+  <circle cx="32" cy="14" r="2.5" fill="url(#favGold)"/>
+  
+  <!-- Stand / Rehal -->
+  <path d="M18,48 L32,40 L46,48" stroke="url(#favGold)" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <path d="M22,48 L32,54 L42,48" stroke="url(#favGold)" stroke-width="2" stroke-linecap="round" fill="none"/>
+
+  <!-- Quran Open Pages (Tegak, Bersih & Kontras Tinggi) -->
+  <path d="M12,23 C18,21 26,22 31,26 L31,41 C26,37 18,36 12,38 Z" fill="#ffffff" stroke="url(#favGold)" stroke-width="1.4"/>
+  <path d="M52,23 C46,21 38,22 33,26 L33,41 C38,37 46,36 52,38 Z" fill="#ffffff" stroke="url(#favGold)" stroke-width="1.4"/>
+  
+  <!-- Verse lines -->
+  <line x1="16" y1="27" x2="27" y2="30" stroke="#005064" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="16" y1="31" x2="27" y2="34" stroke="#005064" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="37" y1="30" x2="48" y2="27" stroke="#005064" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="37" y1="34" x2="48" y2="31" stroke="#005064" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Ribbon -->
+  <path d="M32,26 L32,43" stroke="url(#favGold)" stroke-width="1.5"/>
+</svg>

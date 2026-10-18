@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" width="100%" height="100%">
+  <!-- Background -->
+  <rect width="240" height="100" fill="#FFFFFF" rx="8" />
+
+  <!-- Dynamic Human Figure on Left -->
+  <g transform="translate(10, 8)">
+    <!-- Head -->
+    <circle cx="36" cy="18" r="8.5" fill="#374151" />
+
+    <!-- Torso and Limbs (Active Figure in Blue/Dark Slate) -->
+    <!-- Left reaching arm and body -->
+    <path d="M 33 28 L 12 44 C 10 45 10 47 13 46 L 27 38 L 24 74 L 18 88 C 17 90 20 90 22 88 L 32 70 L 37 54 L 46 80 L 53 82 C 54 82 54 80 52 78 L 44 48 L 56 12 C 57 10 54 10 53 12 L 35 32 Z" fill="#1D4ED8" />
+
+    <!-- Dynamic Red Swooshing Ring / Ribbon -->
+    <path d="M 6 56 C 8 36 34 30 54 36 C 60 38 64 42 62 47 C 60 52 50 56 42 59 C 28 64 12 66 6 56 Z" fill="#DC2626" opacity="0.95" />
+    <!-- Ribbon inner shadow/accent -->
+    <path d="M 12 55 C 24 62 48 57 56 45 C 57 43 56 42 52 40 C 36 34 16 42 12 55 Z" fill="#B91C1C" />
+  </g>
+
+  <!-- Typography on Right: amanah BERBAGI -->
+  <g transform="translate(82, 0)">
+    <!-- "amanah" in organic red bold script -->
+    <text x="0" y="46" fill="#DC2626" font-family="'Brush Script MT', 'Segoe Script', 'Arial Rounded MT Bold', cursive, sans-serif" font-weight="900" font-size="34" letter-spacing="-0.5">
+      amanah
+    </text>
+
+    <!-- "BERBAGI" in bold modern sans-serif uppercase -->
+    <text x="2" y="74" fill="#1F2937" font-family="'Arial Black', 'Impact', 'Segoe UI', sans-serif" font-weight="900" font-size="23" letter-spacing="1">
+      BERBAGI
+    </text>
+  </g>
+</svg>

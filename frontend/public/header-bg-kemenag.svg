@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400">
+  <defs>
+    <linearGradient id="kemenagGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="40%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#022c22" />
+    </linearGradient>
+    <linearGradient id="goldRadial" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#047857" stop-opacity="0" />
+    </linearGradient>
+    <pattern id="arabesque" width="80" height="80" patternUnits="userSpaceOnUse">
+      <circle cx="40" cy="40" r="36" fill="none" stroke="#fef08a" stroke-width="0.8" stroke-opacity="0.15" />
+      <circle cx="40" cy="40" r="20" fill="none" stroke="#6ee7b7" stroke-width="0.6" stroke-opacity="0.2" />
+      <path d="M40 4 L40 76 M4 40 L76 40" stroke="#fde047" stroke-width="0.5" stroke-opacity="0.12" />
+      <polygon points="40,24 51,35 62,40 51,45 40,56 29,45 18,40 29,35" fill="none" stroke="#34d399" stroke-width="0.6" stroke-opacity="0.2" />
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="400" fill="url(#kemenagGreen)" />
+  <rect width="1200" height="400" fill="url(#arabesque)" />
+  <circle cx="600" cy="200" r="320" fill="url(#goldRadial)" />
+</svg>

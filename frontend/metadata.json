@@ -1,0 +1,10 @@
+{
+  "name": "Platform Pelatihan & Peta Quran Disabilitas",
+  "description": "Sistem informasi manajemen pelatihan Al-Quran ramah disabilitas, peta persebaran mitra dan yayasan quran disabilitas se-Indonesia, dan multi-role Super Admin & Mitra.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
