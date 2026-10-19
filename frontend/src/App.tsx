@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SplashLoader from './components/SplashLoader';
 import { Icon } from './components/Icon.tsx';
 import { 
   User, 
@@ -89,8 +90,8 @@ export default function App() {
   // Application Settings state (Default: Alquran Disabilitas)
   const [appSettings, setAppSettings] = useState<ApplicationSettings>({
     applicationName: 'Alquran Disabilitas',
-    logo: '/logo-quran.svg',
-    favicon: '/favicon.svg',
+    logo: '/logo-quran.png',
+    favicon: '/logo-quran.png',
     topbarColor: '#005a71',
     publicRoleLabel: 'Peserta',
     institutionSubtitle: 'Kementerian Agama Republik Indonesia',
@@ -104,6 +105,10 @@ export default function App() {
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [isLogsModalOpen, setIsLogsModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Loading awal: true sampai data pertama selesai diambil dari API/database
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
 
   // Time Period Filter for Dashboard Analytics (Functionalized calendar_today 6 Bulan Terakhir)
   const [selectedPeriod, setSelectedPeriod] = useState<string>('6 Bulan Terakhir');
@@ -256,7 +261,19 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadData();
+    if (!isInitialLoading) {
+      const t = setTimeout(() => setShowSplash(false), 500);
+      return () => clearTimeout(t);
+    }
+  }, [isInitialLoading]);
+
+  useEffect(() => {
+    const startedAt = Date.now();
+    // Tampilkan loader minimal 600ms agar tidak berkedip bila data sangat cepat
+    void loadData().finally(() => {
+      const wait = Math.max(0, 600 - (Date.now() - startedAt));
+      setTimeout(() => setIsInitialLoading(false), wait);
+    });
     const refreshData = () => { void loadData(); };
     window.addEventListener('data-refresh', refreshData);
 
@@ -484,6 +501,17 @@ export default function App() {
     showToast(`Rentang analitik disesuaikan: ${period}`);
     handleLogAction('Filter Periode Data', 'system', `Super Admin mengubah filter waktu analitik menjadi: ${period}.`, 'info');
   };
+
+  // Splash loading: tutup jeda selama data pertama kali diambil dari database.
+  // Setelah selesai, loader fade-out lalu halaman asli (data lengkap) tampil.
+  if (showSplash) {
+    return (
+      <SplashLoader
+        leaving={!isInitialLoading}
+        key="splash"
+      />
+    );
+  }
 
   // Detail event ditampilkan sebagai halaman penuh, bukan modal/pop-up.
   if (activeView === 'events' && eventRoute) {

@@ -37,3 +37,15 @@ html, body, #root, button, input, select, textarea, optgroup {
 code, kbd, samp, pre, .font-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
 }
+
+/* Animasi progress bar pada SplashLoader */
+@keyframes splash-slide {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+.splash-bar {
+  animation: splash-slide 1.3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-bar { animation: none; transform: translateX(100%); }
+}
