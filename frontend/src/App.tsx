@@ -90,8 +90,8 @@ export default function App() {
   // Application Settings state (Default: Alquran Disabilitas)
   const [appSettings, setAppSettings] = useState<ApplicationSettings>({
     applicationName: 'Alquran Disabilitas',
-    logo: '/logo-quran.png',
-    favicon: '/logo-quran.png',
+    logo: '/logo-quran.svg',
+    favicon: '/favicon.svg',
     topbarColor: '#005a71',
     publicRoleLabel: 'Peserta',
     institutionSubtitle: 'Kementerian Agama Republik Indonesia',
@@ -556,26 +556,36 @@ export default function App() {
 
         {/* Admin Bar if logged in */}
         {currentUser && (
-          <div className="sticky top-0 z-50 bg-[#1e293b] text-white px-4 py-2 flex items-center justify-between text-xs border-b border-slate-700 shadow-sm">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span className="font-medium">Pratinjau Publik Portal Pelatihan & Peta Quran</span>
-              <span className="text-slate-400 hidden sm:inline">|</span>
-              <span className="text-slate-300 hidden sm:inline">Masuk sebagai: {currentUser.name} ({currentUser.role === 'superadmin' ? 'Super Admin' : 'Mitra'})</span>
+          <div className="sticky top-0 z-50 bg-[#0b3d33] text-white px-3 sm:px-6 py-1.5 flex items-center gap-2 text-[11px] border-b border-white/10 shadow-sm">
+            {/* Kiri: spacer agar info user tetap di tengah */}
+            <div className="hidden sm:block flex-1" />
+
+            {/* Tengah: nama user + badge role */}
+            <div className="flex items-center gap-2 min-w-0 flex-1 sm:flex-none">
+              <Icon name="user" className="text-[14px] text-white shrink-0" />
+              <span className="font-semibold truncate max-w-[140px] sm:max-w-[220px]">{currentUser.name}</span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-teal-600 text-white text-[10px] font-bold shrink-0">
+                <Icon name="shield" className="text-[11px]" />
+                {currentUser.role === 'superadmin' ? 'Super Admin' : 'Mitra'}
+              </span>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Kanan: tombol aksi */}
+            <div className="flex items-center justify-end gap-2 sm:flex-1">
               <button
                 onClick={() => setActiveView(currentUser.role === 'superadmin' ? 'superadmin' : 'mitra')}
-                className="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                className="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded-full text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
               >
-                <Icon name="arrow_back" className="text-[14px]" />
-                <span>Kembali ke Dashboard</span>
+                <Icon name="arrow_back" className="text-[12px]" />
+                <span className="hidden sm:inline">Kembali ke Dashboard</span>
+                <span className="sm:hidden">Dashboard</span>
               </button>
               <button
                 onClick={handleLogout}
-                className="px-2 py-1 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                className="px-3 py-1 border border-white/40 hover:bg-white/10 text-white rounded-full text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
               >
-                Keluar
+                <Icon name="log-out" className="text-[12px]" />
+                <span>Keluar</span>
               </button>
             </div>
           </div>

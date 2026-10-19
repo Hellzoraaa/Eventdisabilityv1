@@ -802,16 +802,9 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             </div>
 
 
-            {/* Login / Dashboard Button */}
-            {currentUser ? (
-              <button
-                onClick={onNavigateToDashboard}
-                className="flex items-center gap-2 px-5 py-2.5 bg-[#1e293b] text-white hover:bg-slate-800 rounded-xl text-[13px] sm:text-[14px] font-semibold transition-all shadow-xs cursor-pointer border border-white/10"
-              >
-                <Icon name="dashboard" className="text-[18px]" />
-                <span>Dashboard ({currentUser.role === 'superadmin' ? 'Super Admin' : 'Mitra'})</span>
-              </button>
-            ) : (
+            {/* Tombol Login (hanya tampil jika belum login).
+                Saat sudah login, kembali ke dashboard lewat tombol "Kembali ke Dashboard" di bar atas. */}
+            {!currentUser && (
               <button
                 onClick={() => onOpenLogin()}
                 className={`px-5 py-2.5 rounded-xl text-[13px] sm:text-[14px] font-semibold transition-all cursor-pointer shadow-2xs border ${appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff'
