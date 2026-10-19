@@ -721,18 +721,6 @@ app.put('/api/users/:id', async (req, res) => {
       }
     }
 
-    // Sinkronkan logo event lama jika logo Mitra berubah.
-    if (body.organizationLogo !== undefined) {
-      try {
-        await pool.query(
-          'UPDATE training_proposals SET mitra_logo = ? WHERE mitra_id_string = ? OR mitra_org = ?',
-          [newOrgLogo || '', id, current.organizationName || '']
-        );
-      } catch (err) {
-        console.warn('Non-fatal sync error for proposal mitra_logo:', err);
-      }
-    }
-
     const updated = await getUserById(id);
     await addSystemLog(updated?.name || current.name, updated?.role || current.role, 'Pembaruan Data Pengguna', 'system', `Data pengguna diperbarui di MySQL.`, 'success');
     return res.json({ success: true, user: updated });
@@ -758,15 +746,6 @@ const handleUserLogoUpdate = async (req: express.Request, res: express.Response)
       [newLogo || null, id]
     );
 
-    // Sync to training proposals
-    try {
-      await pool.query(
-        'UPDATE training_proposals SET mitra_logo = ? WHERE mitra_id_string = ? OR mitra_org = ?',
-        [newLogo, id, current.organizationName || '']
-      );
-    } catch (err) {
-      console.warn('Non-fatal sync error for proposal mitra_logo:', err);
-    }
 
     // Pastikan logo juga tercermin pada profil Mitra di Homepage.
     if (current.role === 'mitra') {
@@ -1042,9 +1021,9 @@ app.get('/api/events', async (req, res) => {
                FROM training_proposals tp
                LEFT JOIN users u ON u.id = tp.mitra_id OR u.user_id_string = tp.mitra_id_string`;
     if (where.length) sql += ` WHERE ${where.join(' AND ')}`;
-    sql += ' ORDER BY tp.created_at DESC, tp.id DESC';
-
-    const [rows] = await pool.query(sql, params);
+    // Urutkan di Node, bukan di MySQL, agar tidak kena ER_OUT_OF_SORTMEMORY akibat kolom base64 besar.
+    const [rawRows] = await pool.query(sql, params);
+    const rows = Array.isArray(rawRows) ? [...rawRows].sort((a: any, b: any) => Number(b.id) - Number(a.id)) : rawRows;
     return res.json({ events: Array.isArray(rows) ? rows.map(mapDbEvent) : [] });
   } catch (error) {
     console.error('[Events GET] error:', error);
@@ -1332,8 +1311,10 @@ app.get('/api/tpq', async (req, res) => {
                FROM tpq_programs tp
                LEFT JOIN users u ON u.id = tp.mitra_id OR u.user_id_string = tp.mitra_id_string`;
     if (where.length) sql += ` WHERE ${where.join(' AND ')}`;
-    sql += ' ORDER BY tp.created_at DESC, tp.id DESC';
-    const [rows] = await pool.query(sql, params);
+    // Tanpa ORDER BY di MySQL: baris membawa kolom besar (logo base64, foto JSON) sehingga filesort
+    // memicu ER_OUT_OF_SORTMEMORY. Urutan dibuat di Node (id auto-increment = urutan input).
+    const [rawRows] = await pool.query(sql, params);
+    const rows = Array.isArray(rawRows) ? [...rawRows].sort((a: any, b: any) => Number(b.id) - Number(a.id)) : rawRows;
     return res.json({ programs: Array.isArray(rows) ? rows.map((row: any) => { const mapped = mapDbTPQ(row); if (!sessionUser || req.query.publicCatalog === 'true' || mapped.status !== 'disetujui') mapped.linkGrupWa = ''; return mapped; }) : [] });
   } catch (error) {
     console.error('[TPQ GET] error:', error);
