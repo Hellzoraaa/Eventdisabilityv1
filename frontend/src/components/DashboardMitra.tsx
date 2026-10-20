@@ -546,7 +546,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
           }`}
         >
-          {editingProposalId ? 'Perbaiki Permintaan' : 'Form Permintaan Baru'}
+          {editingProposalId ? 'Perbaiki Permintaan' : 'Form Event Baru'}
         </button>
         <button
           onClick={() => setActiveTab('peserta')}
@@ -556,7 +556,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
           }`}
         >
-          Data Peserta ({myParticipants.length})
+          Data Peserta Event ({myParticipants.length})
         </button>
         <button
           onClick={() => setActiveTab('peserta_tpq')}
@@ -566,7 +566,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
           }`}
         >
-          Peserta TPQ
+          Data Peserta TPQ
         </button>
       </div>
 
@@ -769,7 +769,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
         <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-6 md:p-8 shadow-sm">
           <div className="pb-5 border-b border-outline-variant/30 mb-6">
             <h2 className="text-[20px] font-semibold text-on-surface">
-              {editingProposalId ? 'Perbaiki Permintaan Pelatihan (Revisi)' : 'Ajukan Permintaan Penyelenggaraan Pelatihan'}
+              {editingProposalId ? 'Perbaiki Permintaan Pelatihan (Revisi)' : 'Daftarkan Event Anda'}
             </h2>
             <p className="text-[13px] text-on-surface-variant mt-1.5 font-medium">
               Lengkapi formulir spesifikasi kegiatan pelatihan quran disabilitas. Permintaan Anda akan ditinjau oleh Superadmin untuk penetapan kuota & tautan registrasi publik.
@@ -819,7 +819,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               <div className="request-field request-full"><label>Benefit</label><textarea value={benefitEvent} onChange={e=>setBenefitEvent(e.target.value)} placeholder="Benefit bagi peserta" /></div>
               <div className="request-field"><label>Batas Pendaftaran *</label><input required type="date" value={batasPendaftaranEvent} onChange={e=>setBatasPendaftaranEvent(e.target.value)} /></div>
             </div>
-            <div className="flex items-center justify-end gap-3 pt-5 border-t border-outline-variant/30"><button type="button" onClick={()=>{handleResetForm();setActiveTab('daftar')}} className="px-5 py-2.5 rounded-xl font-semibold hover:bg-surface-container">Batal</button><button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-semibold disabled:opacity-50">{isSubmitting?'Mengirim Permintaan...':editingProposalId?'Kirim Revisi Permintaan Ulang':'Kirim Permintaan ke Superadmin'}</button></div>
+            <div className="flex items-center justify-end gap-3 pt-5 border-t border-outline-variant/30"><button type="button" onClick={()=>{handleResetForm();setActiveTab('daftar')}} className="px-5 py-2.5 rounded-xl font-semibold hover:bg-surface-container">Batal</button><button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-semibold disabled:opacity-50">{isSubmitting?'Mengirim Permintaan...':editingProposalId?'Kirim Revisi Permintaan Ulang':'Kirim'}</button></div>
           </form>
         </div>
       )}
@@ -830,7 +830,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-outline-variant/30 mb-6">
             <div>
               <h2 className="text-[20px] font-semibold text-on-surface">
-                Data Peserta Pelatihan Disetujui
+                Data Peserta Event
               </h2>
               <p className="text-[13px] text-on-surface-variant mt-1.5 font-medium">
                 Daftar peserta terdaftar dari link registrasi publik untuk pelaksanaan pelatihan.
@@ -920,7 +920,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
       {activeTab === 'peserta_tpq' && (
         <div className="space-y-5">
           <div>
-            <h2 className="text-[20px] font-semibold text-on-surface">Data Peserta Pendidikan TPQ</h2>
+            <h2 className="text-[20px] font-semibold text-on-surface">Data Peserta Pendidikan</h2>
             <p className="text-[13px] text-on-surface-variant mt-1.5 font-medium">
               Peserta yang mendaftar melalui formulir pendaftaran pada program TPQ yang Anda selenggarakan.
             </p>

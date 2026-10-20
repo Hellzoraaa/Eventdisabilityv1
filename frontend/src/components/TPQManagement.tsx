@@ -307,14 +307,14 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
         </div>
         <button onClick={() => { resetForm(); setActiveTab('ajukan'); }} className="inline-flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[13px] font-semibold shadow-sm cursor-pointer shrink-0">
           <Icon name="add_circle" className="text-[18px]" />
-          Ajukan Program TPQ
+          Daftar Pendidikan Baru
         </button>
       </div>
 
       <div className="flex items-center gap-2 border-b border-outline-variant/30 pb-3 overflow-x-auto">
         <button onClick={() => setActiveTab('daftar')} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'daftar' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{currentUser.role === 'superadmin' ? 'Semua Program TPQ' : 'Program TPQ Saya'} ({programs.length})</button>
-        <button onClick={() => { resetForm(); setActiveTab('ajukan'); }} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'ajukan' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{editingId ? 'Perbaiki Program' : 'Program TPQ Baru'}</button>
-        <button onClick={() => setActiveTab('peserta')} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'peserta' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>Peserta TPQ</button>
+        <button onClick={() => { resetForm(); setActiveTab('ajukan'); }} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'ajukan' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{editingId ? 'Perbaiki Program' : 'Form Pendidikan Baru'}</button>
+        <button onClick={() => setActiveTab('peserta')} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'peserta' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>Data Peserta Pendidikan</button>
       </div>
 
       {error && <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[13px]">{error}</div>}
@@ -378,10 +378,10 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
       {activeTab === 'ajukan' && (
         <form onSubmit={submit} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-6 md:p-8 shadow-sm space-y-5 text-[13px]">
           <style>{`.request-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.request-field{display:flex;flex-direction:column;gap:7px}.request-field label{font-size:13px;font-weight:650;color:#182230}.request-field input,.request-field select,.request-field textarea{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:9px;background:white;color:#182230;font:inherit}.request-field textarea{min-height:82px}.request-full{grid-column:1/-1}.request-options{display:flex;gap:14px;flex-wrap:wrap}.request-options label{display:flex;align-items:center;gap:6px;font-weight:500}.request-options input[type=checkbox]{width:auto;flex:0 0 auto;margin-top:2px}@media(max-width:600px){.request-grid{grid-template-columns:1fr}.request-full{grid-column:auto}}`}</style>
-          <div><h2 className="text-[20px] font-semibold text-on-surface">{editingId ? 'Perbaiki Program Pendidikan TPQ' : 'Pengajuan Pendidikan TPQ'}</h2><p className="text-[13px] text-on-surface-variant mt-1">Form khusus program pendidikan TPQ. Target Peserta dan Kuota tidak ditampilkan.</p></div>
+          <div><h2 className="text-[20px] font-semibold text-on-surface">{editingId ? 'Perbaiki Program Pendidikan TPQ' : 'Daftarkan Pendidikan'}</h2><p className="text-[13px] text-on-surface-variant mt-1">Form khusus program pendidikan TPQ. Target Peserta dan Kuota tidak ditampilkan.</p></div>
           <div className="request-grid">
 
-            <div className="request-field request-full"><label>Nama Pendidikan TPQ *</label><input required value={form.namaProgram} onChange={e=>update('namaProgram',e.target.value)} /></div>
+            <div className="request-field request-full"><label>Nama Pendidikan *</label><input required value={form.namaProgram} onChange={e=>update('namaProgram',e.target.value)} /></div>
             <div className="request-field"><label>Jenis Peserta / Disabilitas</label><div className="request-options" role="group" aria-label="Pilih jenis peserta">
               {TPQ_MENU.map(group => <label key={group.label} className="!items-start rounded-lg border border-slate-200 p-2.5"><input type="checkbox" checked={disabilitasPendidikan.includes(group.label)} onChange={() => toggleSelection(disabilitasPendidikan, setDisabilitasPendidikan, group.label)} /> <span>{group.label}</span></label>)}
             </div><small>Boleh memilih satu atau beberapa jenis peserta. Pilihan kategori tidak dibatasi oleh pilihan ini.</small></div>
@@ -407,7 +407,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
             <div className="request-field request-full"><label>Benefit</label><textarea value={form.benefitProgram} onChange={e=>update('benefitProgram',e.target.value)} /></div>
           </div>
           {error && <p className="rounded-lg bg-red-50 text-red-700 p-3">{error}</p>}{success && <p className="rounded-lg bg-green-50 text-green-700 p-3">{success}</p>}
-          <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant/30"><button type="button" onClick={()=>{resetForm();setActiveTab('daftar')}} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold">Batal</button><button disabled={isSubmitting} type="submit" className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold disabled:opacity-50">{isSubmitting?'Menyimpan...':editingId?'Kirim Revisi':'Ajukan Program TPQ'}</button></div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant/30"><button type="button" onClick={()=>{resetForm();setActiveTab('daftar')}} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold">Batal</button><button disabled={isSubmitting} type="submit" className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold disabled:opacity-50">{isSubmitting?'Menyimpan...':editingId?'Kirim Revisi':'Kirim'}</button></div>
         </form>
       )}
     </div>

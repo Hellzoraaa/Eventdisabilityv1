@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon.tsx';
 import { User, ApplicationSettings } from '../types.ts';
+import { ForgotPasswordForm } from './ForgotPasswordForm.tsx';
 
 interface LoginFormModalProps {
   isOpen: boolean;
@@ -37,6 +38,9 @@ export const LoginFormModal: React.FC<LoginFormModalProps> = ({
 
   const [showPassword, setShowPassword] = useState(false);
 
+  // Tampilan lupa password (OTP lewat email)
+  const [showForgot, setShowForgot] = useState(false);
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +67,7 @@ export const LoginFormModal: React.FC<LoginFormModalProps> = ({
     setPassword('');
     setErrorMsg(null);
     setShowPassword(false);
+    setShowForgot(false);
 
     let cancelled = false;
 
@@ -422,7 +427,7 @@ export const LoginFormModal: React.FC<LoginFormModalProps> = ({
         </div>
 
         {/* Error */}
-        {errorMsg && (
+        {errorMsg && !showForgot && (
           <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[12px] flex items-center gap-2">
             <Icon name="error" className="text-[18px] text-rose-600 shrink-0" />
 
@@ -430,6 +435,18 @@ export const LoginFormModal: React.FC<LoginFormModalProps> = ({
           </div>
         )}
 
+        {showForgot ? (
+          <ForgotPasswordForm
+            initialEmail={email}
+            onBackToLogin={(backEmail) => {
+              if (backEmail) setEmail(backEmail);
+              setPassword('');
+              setErrorMsg(null);
+              setShowForgot(false);
+            }}
+          />
+        ) : (
+        <>
         {/* Login Form */}
         <form
           onSubmit={handleSubmit}
@@ -503,6 +520,21 @@ export const LoginFormModal: React.FC<LoginFormModalProps> = ({
             </div>
           </div>
 
+          {/* Lupa password */}
+          <div className="flex justify-end -mt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMsg(null);
+                setShowForgot(true);
+              }}
+              disabled={isLoading}
+              className="text-[12px] font-semibold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Lupa password?
+            </button>
+          </div>
+
           {/* Login */}
           <button
             type="submit"
@@ -523,17 +555,11 @@ export const LoginFormModal: React.FC<LoginFormModalProps> = ({
             )}
           </button>
         </form>
+        </>
+        )}
 
-        {/* Database indicator */}
-        <div className="mt-5 pt-4 border-t border-slate-100">
-          <div className="flex items-center justify-center gap-2 text-[10px] text-slate-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-
-            <span>
-              Login diverifikasi melalui database sistem
-            </span>
-          </div>
-        </div>
+       
+        
       </div>
     </div>
   );

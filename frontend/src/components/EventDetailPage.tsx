@@ -629,17 +629,15 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
                   <span className="inline-block px-3 py-0.5 rounded-md bg-white/20 text-white text-[11px] font-bold tracking-wider uppercase mb-2">{event.jenisEvent || 'Event'}</span>
                   <h2 className="text-xl sm:text-2xl font-black leading-tight tracking-tight uppercase text-white mb-2">{event.namaKegiatan}</h2>
                   <p className="text-[13px] text-white font-medium mb-4 leading-relaxed">Diselenggarakan oleh <strong>{organizer}</strong> untuk sahabat penyandang disabilitas se-Indonesia.</p>
-                  <div className="inline-block px-5 py-2 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white font-black text-[18px] sm:text-[20px] tracking-wider shadow-lg">GRATIS!</div>
                 </div>
               </div>
-              {photos[0] && <span className="absolute right-3 top-3 z-10 rounded-full bg-black/45 px-3 py-1 text-[10px] font-semibold text-white backdrop-blur-sm">Foto dari mitra</span>}
             </div>
 
             <section>
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-[12px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                   <Icon name="photo_library" className="text-[16px] text-[#005a71]" />
-                  Foto Dokumentasi Kegiatan
+                  Foto Failitas Kegiatan
                 </h2>
                 {photos.length > 0 && <span className="text-[11px] font-bold text-[#005a71] bg-cyan-50 px-2 py-0.5 rounded">{photos.length} Foto</span>}
               </div>

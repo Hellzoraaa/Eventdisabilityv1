@@ -17,7 +17,7 @@ import type {
   SystemLog
 } from '../frontend/src/types.ts';
 import { getDbPool } from './database/mysql.ts';
-import { sendWaLinkEmail, isRealEmail } from './mailer.ts';
+import { sendWaLinkEmail, sendOtpEmail, isRealEmail } from './mailer.ts';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -498,7 +498,7 @@ app.post('/api/auth/login', async (req, res) => {
        FROM users WHERE LOWER(email) = ? LIMIT 1`,
       [email]
     );
-    if (!Array.isArray(rows) || rows.length === 0) return res.status(401).json({ error: 'Akun dengan email tersebut tidak ditemukan.' });
+    if (!Array.isArray(rows) || rows.length === 0) return res.status(401).json({ error: 'Email Atau Password Salah.' });
 
     const dbUser = rows[0] as any;
     if (!dbUser.password || !(await bcrypt.compare(password, dbUser.password))) {
@@ -541,6 +541,231 @@ app.post('/api/auth/change-password', async (req, res) => {
   } catch (error) {
     console.error('[Auth Change Password] error:', error);
     return res.status(500).json({ error: 'Gagal memperbarui kata sandi.' });
+  }
+});
+
+// ======================== LUPA PASSWORD (OTP LEWAT EMAIL) ========================
+// Alur: forgot-password (kirim OTP) -> verify-otp (kode benar -> dapat resetToken)
+//       -> reset-password (resetToken + kata sandi baru).
+// Keamanan: OTP & token disimpan sebagai HMAC (bukan teks asli), kedaluwarsa, dibatasi
+// percobaan, sekali pakai, dan respons tidak membocorkan apakah email terdaftar.
+const OTP_TTL_MINUTES = 10;
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_COOLDOWN_SECONDS = 60;
+const OTP_MAX_PER_HOUR = 5;
+const RESET_TOKEN_TTL_MINUTES = 10;
+const MIN_PASSWORD_LENGTH = 6;
+const OTP_PEPPER = process.env.OTP_PEPPER || process.env.GMAIL_APP_PASSWORD || 'ganti-OTP_PEPPER-di-env';
+if (!process.env.OTP_PEPPER) {
+  console.warn('[Auth] OTP_PEPPER belum diisi di .env. Isi dengan teks acak panjang sebelum online.');
+}
+
+const hmac = (value: string) => crypto.createHmac('sha256', OTP_PEPPER).update(value).digest('hex');
+const safeEqualHex = (a: string, b: string) => {
+  const x = Buffer.from(a, 'hex');
+  const y = Buffer.from(b, 'hex');
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+};
+const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+const FORGOT_SENT_MESSAGE = 'Kode OTP telah dikirim ke email Anda. Periksa kotak masuk atau folder Spam.';
+const EMAIL_NOT_REGISTERED_MESSAGE = 'Email tidak terdaftar. Pastikan email sama dengan yang dipakai pada akun Mitra atau Super Admin.';
+const OTP_FAIL_MESSAGE = 'Kode OTP salah atau sudah kedaluwarsa. Silakan minta kode baru bila perlu.';
+
+// Pembatas sederhana per IP (di memori; cukup untuk satu server).
+const forgotIpHits = new Map<string, { count: number; resetAt: number }>();
+function isIpLimited(ip: string, max = 30, windowMs = 15 * 60 * 1000) {
+  const now = Date.now();
+  const entry = forgotIpHits.get(ip);
+  if (!entry || entry.resetAt < now) {
+    forgotIpHits.set(ip, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > max;
+}
+
+async function ensurePasswordResetTable() {
+  const pool = await getPool();
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id BIGINT UNSIGNED NOT NULL,
+      otp_hash CHAR(64) NOT NULL,
+      attempts INT UNSIGNED NOT NULL DEFAULT 0,
+      expires_at DATETIME NOT NULL,
+      verified_at DATETIME NULL,
+      reset_token_hash CHAR(64) NULL,
+      token_expires_at DATETIME NULL,
+      used_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_pr_user (user_id, created_at),
+      KEY idx_pr_token (reset_token_hash),
+      CONSTRAINT fk_pr_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
+async function findUserByEmail(email: string) {
+  const pool = await getPool();
+  const [rows] = await pool.query(
+    'SELECT id, user_id_string, name, email, role FROM users WHERE LOWER(email) = ? LIMIT 1',
+    [email]
+  );
+  return Array.isArray(rows) && rows.length ? (rows[0] as any) : null;
+}
+
+// 1) Minta OTP
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    if (!EMAIL_PATTERN.test(email)) return res.status(400).json({ error: 'Masukkan alamat email yang valid.' });
+    // Karena sistem memberi tahu email terdaftar/tidak, batasi percobaan per IP agar daftar email tidak bisa ditebak massal.
+    if (isIpLimited(`forgot:${req.ip || 'unknown'}`, 10)) {
+      return res.status(429).json({ error: 'Terlalu banyak percobaan. Coba lagi dalam beberapa menit.' });
+    }
+
+    const user = await findUserByEmail(email);
+    if (!user || !isRealEmail(user.email)) return res.status(404).json({ error: EMAIL_NOT_REGISTERED_MESSAGE });
+
+    const pool = await getPool();
+    const [recent] = await pool.query(
+      `SELECT
+         SUM(created_at > (NOW() - INTERVAL ? SECOND)) AS in_cooldown,
+         SUM(created_at > (NOW() - INTERVAL 1 HOUR)) AS in_hour
+       FROM password_resets WHERE user_id = ?`,
+      [OTP_COOLDOWN_SECONDS, user.id]
+    );
+    const stat = (recent as any[])[0] || {};
+    if (Number(stat.in_cooldown || 0) > 0) {
+      return res.status(429).json({ error: `Kode OTP baru saja dikirim. Tunggu ${OTP_COOLDOWN_SECONDS} detik sebelum meminta lagi.` });
+    }
+    if (Number(stat.in_hour || 0) >= OTP_MAX_PER_HOUR) {
+      return res.status(429).json({ error: 'Permintaan OTP sudah mencapai batas per jam. Coba lagi nanti.' });
+    }
+
+    const otp = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+    await pool.query('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL', [user.id]);
+    const [inserted] = await pool.query(
+      `INSERT INTO password_resets (user_id, otp_hash, expires_at)
+       VALUES (?, ?, NOW() + INTERVAL ? MINUTE)`,
+      [user.id, hmac(`otp:${user.id}:${otp}`), OTP_TTL_MINUTES]
+    );
+    const resetId = (inserted as any).insertId;
+
+    // Kirim email dan tunggu hasilnya (maksimal 20 detik) agar pengguna tahu bila pengiriman gagal.
+    try {
+      await Promise.race([
+        sendOtpEmail({ to: user.email, nama: user.name, otp, minutes: OTP_TTL_MINUTES }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Pengiriman email melebihi batas waktu.')), 20000)),
+      ]);
+    } catch (mailError: any) {
+      console.error('[Forgot Password] Gagal mengirim OTP:', mailError?.message || mailError);
+      await pool.query('UPDATE password_resets SET used_at = NOW() WHERE id = ?', [resetId]);
+      await addSystemLog(user.name, user.role, 'Gagal kirim OTP', 'auth', `OTP reset password untuk ${user.email} gagal dikirim.`, 'error');
+      return res.status(502).json({ error: 'Email OTP gagal dikirim. Coba lagi beberapa saat lagi atau hubungi administrator.' });
+    }
+    await addSystemLog(user.name, user.role, 'Minta OTP reset password', 'auth', `OTP reset password dikirim ke ${user.email}.`, 'info');
+
+    return res.json({ success: true, message: FORGOT_SENT_MESSAGE });
+  } catch (error) {
+    console.error('[Forgot Password] error:', error);
+    return res.status(500).json({ error: 'Gagal memproses permintaan. Silakan coba lagi.' });
+  }
+});
+
+// 2) Verifikasi OTP -> resetToken
+app.post('/api/auth/verify-otp', async (req, res) => {
+  try {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const otp = typeof req.body?.otp === 'string' ? req.body.otp.trim() : '';
+    if (!EMAIL_PATTERN.test(email) || !/^\d{6}$/.test(otp)) {
+      return res.status(400).json({ error: 'Kode OTP harus 6 digit angka.' });
+    }
+    if (isIpLimited(`verify:${req.ip || 'unknown'}`, 60)) {
+      return res.status(429).json({ error: 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.' });
+    }
+
+    const user = await findUserByEmail(email);
+    if (!user) return res.status(400).json({ error: OTP_FAIL_MESSAGE });
+
+    const pool = await getPool();
+    const [rows] = await pool.query(
+      `SELECT id, otp_hash, attempts FROM password_resets
+       WHERE user_id = ? AND used_at IS NULL AND verified_at IS NULL AND expires_at > NOW()
+       ORDER BY id DESC LIMIT 1`,
+      [user.id]
+    );
+    const record = Array.isArray(rows) && rows.length ? (rows[0] as any) : null;
+    if (!record || Number(record.attempts) >= OTP_MAX_ATTEMPTS) {
+      if (record) await pool.query('UPDATE password_resets SET used_at = NOW() WHERE id = ?', [record.id]);
+      return res.status(400).json({ error: OTP_FAIL_MESSAGE });
+    }
+
+    if (!safeEqualHex(String(record.otp_hash), hmac(`otp:${user.id}:${otp}`))) {
+      const attempts = Number(record.attempts) + 1;
+      await pool.query(
+        'UPDATE password_resets SET attempts = ?, used_at = IF(? >= ?, NOW(), used_at) WHERE id = ?',
+        [attempts, attempts, OTP_MAX_ATTEMPTS, record.id]
+      );
+      await addSystemLog(user.name, user.role, 'OTP salah', 'auth', `OTP reset password salah untuk ${user.email}.`, 'warning');
+      return res.status(400).json({ error: OTP_FAIL_MESSAGE });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    await pool.query(
+      `UPDATE password_resets
+       SET verified_at = NOW(), reset_token_hash = ?, token_expires_at = NOW() + INTERVAL ? MINUTE
+       WHERE id = ?`,
+      [hmac(`token:${user.id}:${resetToken}`), RESET_TOKEN_TTL_MINUTES, record.id]
+    );
+    return res.json({ success: true, resetToken });
+  } catch (error) {
+    console.error('[Verify OTP] error:', error);
+    return res.status(500).json({ error: 'Gagal memverifikasi kode OTP.' });
+  }
+});
+
+// 3) Atur kata sandi baru
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const resetToken = typeof req.body?.resetToken === 'string' ? req.body.resetToken : '';
+    const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : '';
+    const confirmPassword = typeof req.body?.confirmPassword === 'string' ? req.body.confirmPassword : '';
+    if (!EMAIL_PATTERN.test(email) || !/^[0-9a-f]{64}$/.test(resetToken)) {
+      return res.status(400).json({ error: 'Sesi reset tidak valid. Ulangi dari awal.' });
+    }
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `Kata sandi baru minimal ${MIN_PASSWORD_LENGTH} karakter.` });
+    }
+    if (newPassword !== confirmPassword) return res.status(400).json({ error: 'Konfirmasi kata sandi tidak sama.' });
+
+    const user = await findUserByEmail(email);
+    const expired = { error: 'Sesi reset sudah kedaluwarsa. Silakan minta kode OTP baru.' };
+    if (!user) return res.status(400).json(expired);
+
+    const pool = await getPool();
+    const [rows] = await pool.query(
+      `SELECT id, reset_token_hash FROM password_resets
+       WHERE user_id = ? AND used_at IS NULL AND verified_at IS NOT NULL
+         AND token_expires_at > NOW() AND reset_token_hash IS NOT NULL
+       ORDER BY id DESC LIMIT 1`,
+      [user.id]
+    );
+    const record = Array.isArray(rows) && rows.length ? (rows[0] as any) : null;
+    if (!record || !safeEqualHex(String(record.reset_token_hash), hmac(`token:${user.id}:${resetToken}`))) {
+      return res.status(400).json(expired);
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await pool.query('UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newHash, user.id]);
+    await pool.query('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL', [user.id]);
+    await addSystemLog(user.name, user.role, 'Reset password (OTP)', 'auth', `Kata sandi ${user.email} berhasil diatur ulang lewat OTP email.`, 'success');
+    return res.json({ success: true, message: 'Kata sandi berhasil diperbarui. Silakan login dengan kata sandi baru.' });
+  } catch (error) {
+    console.error('[Reset Password] error:', error);
+    return res.status(500).json({ error: 'Gagal mengatur ulang kata sandi.' });
   }
 });
 
@@ -2333,6 +2558,7 @@ async function startServer() {
       await getDbPool();
       await syncAllMitraCommunities();
       await ensureInitialPasswords();
+      await ensurePasswordResetTable();
       console.log('[MySQL] Database siap dan tersinkronisasi.');
     } catch (err) {
       console.error('[MySQL] Koneksi database gagal:', err);
