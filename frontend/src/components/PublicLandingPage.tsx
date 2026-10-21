@@ -675,7 +675,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               </a>
               <TpqNavMenu
                 variant="desktop"
-                label={currentLang === 'id' ? 'Program TPQ' : 'TPQ Programs'}
+                label={currentLang === 'id' ? 'Pendidikan' : 'Education'}
                 onSelect={handleTpqSelect}
               />
               <a href="#peta-lokasi" className="hover:opacity-80 transition-opacity">
@@ -848,7 +848,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               </a>
               <TpqNavMenu
                 variant="mobile"
-                label="Program TPQ"
+                label="Pendidikan"
                 onSelect={handleTpqSelect}
                 onNavigate={() => setIsMobileNavOpen(false)}
               />
@@ -1037,7 +1037,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                   href="#program-tpq"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-[#006316] border border-[#006316]/40 hover:bg-emerald-50 text-[13px] font-semibold transition-all"
                 >
-                  <span>Lihat Program TPQ</span>
+                  <span>Lihat Katalog Pendidikan</span>
                 </a>
               </div>
             </div>
@@ -1325,11 +1325,6 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                     <span className="inline-block px-3 py-0.5 rounded-full bg-emerald-600 text-white text-[11px] font-bold tracking-wide">
                       Buka
                     </span>
-                  </div>
-
-                  {/* Batch */}
-                  <div className="text-[12px] font-bold text-slate-500 mt-1.5">
-                    {event.batch || 'Batch 1'}
                   </div>
 
                   {/* Title */}

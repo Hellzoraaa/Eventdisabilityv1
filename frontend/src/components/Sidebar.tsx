@@ -14,6 +14,8 @@ interface SidebarProps {
     | 'reports'
     | 'manage_events'
     | 'manage_tpq'
+    | 'bank_soal'
+    | 'kosakata'
     | 'approvals'
     | 'participants'
     | 'disabilities'
@@ -183,9 +185,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => handleItemClick(() => onNavigate('manage_tpq'))}
               className={navItemClass(isItemActive('manage_tpq'))}
             >
-              <span>Kelola Pendidikan TPQ</span>
+              <span>Kelola Pendidikan</span>
             </button>
           )}
+
+          {/* Bank Soal */}
+          {currentUser && (currentUser.role === 'superadmin' || currentUser.role === 'mitra') && (
+            <button
+              onClick={() => handleItemClick(() => onNavigate('bank_soal'))}
+              className={navItemClass(isItemActive('bank_soal'))}
+            >
+              <span>Bank Soal</span>
+            </button>
+          )}
+
+          {/* Kosakata Isyarat Keislaman */}
+          <button
+            onClick={() => handleItemClick(() => onNavigate('kosakata'))}
+            className={navItemClass(isItemActive('kosakata'))}
+          >
+            <span>Kosakata Isyarat Keislaman</span>
+          </button>
 
           {/* Data Peserta */}
           {currentUser?.role === 'superadmin' && (

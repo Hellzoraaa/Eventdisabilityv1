@@ -14,6 +14,8 @@ import {
 } from './types.ts';
 import { Sidebar } from './components/Sidebar.tsx';
 import { TPQManagement } from './components/TPQManagement.tsx';
+import { BankSoal } from './components/BankSoal.tsx';
+import { KosakataIsyarat } from './components/KosakataIsyarat.tsx';
 import { Header } from './components/Header.tsx';
 import { PublicLandingPage } from './components/PublicLandingPage.tsx';
 import { EventCatalogPublic } from './components/EventCatalogPublic.tsx';
@@ -46,6 +48,8 @@ export default function App() {
     | 'reports'
     | 'manage_events'
     | 'manage_tpq'
+    | 'bank_soal'
+    | 'kosakata'
     | 'approvals'
     | 'participants'
     | 'disabilities'
@@ -1142,6 +1146,18 @@ export default function App() {
             )
           )}
 
+          {activeView === 'bank_soal' && (
+            currentUser && (currentUser.role === 'superadmin' || currentUser.role === 'mitra') ? (
+              <BankSoal currentUser={currentUser} events={proposals} />
+            ) : (
+              <div className="max-w-md mx-auto px-4 py-16 text-center">
+                <LoginRequiredNotice roleRequired="mitra" customTitle="Bank Soal" customDescription="Hanya Mitra dan Super Admin yang dapat mengakses halaman ini." onOpenLogin={() => handleOpenLogin('mitra')} />
+              </div>
+            )
+          )}
+
+          {activeView === 'kosakata' && <KosakataIsyarat currentUser={currentUser} />}
+
           {activeView === 'manage_tpq' && (
             currentUser && (currentUser.role === 'superadmin' || currentUser.role === 'mitra') ? (
               <TPQManagement currentUser={currentUser} onProgramsUpdated={async () => { try { const publicData = await fetchJson<{ programs?: TPQProgram[] }>('/api/tpq?publicCatalog=true'); setTpqPrograms(Array.isArray(publicData.programs) ? publicData.programs : []); } catch (error) { console.error('[TPQ] Gagal memperbarui katalog publik:', error); } }} />
@@ -1149,7 +1165,7 @@ export default function App() {
               <div className="max-w-md mx-auto px-4 py-16 text-center">
                 <LoginRequiredNotice
                   roleRequired="mitra"
-                  customTitle="Kelola Pendidikan TPQ"
+                  customTitle="Kelola Pendidikan"
                   customDescription="Hanya Mitra dan Super Admin yang dapat mengakses halaman ini."
                   onOpenLogin={() => handleOpenLogin('mitra')}
                 />

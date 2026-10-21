@@ -1,3 +1,4 @@
+import { ScoreCell } from './ScoreCell.tsx';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from './Icon.tsx';
 import { Participant, TrainingProposal, User, DisabilityMaster } from '../types.ts';
@@ -484,9 +485,11 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                   <th className="py-3 px-4">Ragam Disabilitas</th>
                   <th className="py-3 px-4">Kontak (WhatsApp & Email)</th>
                   <th className="py-3 px-4">Event Pelatihan</th>
+                  <th className="py-3 px-4">Nilai Pretest</th>
                   <th className="py-3 px-4">Kebutuhan Fasilitas</th>
                   <th className="py-3 px-4">Status Kehadiran</th>
                   <th className="py-3 px-4 text-right">Aksi</th>
+                  <th className="py-3 px-4">Nilai Postest</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/20">
@@ -495,7 +498,8 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                     <td className="py-3 px-4 font-semibold text-on-surface">
                       {p.namaLengkap}
                       <span className="block text-[11px] font-normal text-on-surface-variant">
-                        Usia: {p.usia} tahun {p.catatanKhusus ? `• Catatan: ${p.catatanKhusus}` : ''}
+                        {p.alamat ? <span className="block break-words" style={{ overflowWrap: 'anywhere' }}>Alamat: {p.alamat}</span> : null}
+                        Usia: {p.usia} tahun{p.jenisKelamin ? ` • ${p.jenisKelamin}` : ''} {p.catatanKhusus ? `• Catatan: ${p.catatanKhusus}` : ''}
                       </span>
                     </td>
                     <td className="py-3 px-4">
@@ -522,6 +526,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                     <td className="py-3 px-4 max-w-xs text-on-surface font-medium truncate" title={p.eventTitle}>
                       {p.eventTitle || 'Pelatihan Disabilitas'}
                     </td>
+                    <td className="py-3 px-4"><ScoreCell participant={p} field="nilaiPretest" onSaved={(np) => setParticipants(prev => prev.map(x => x.id === np.id ? np : x))} /></td>
                     <td className="py-3 px-4 text-on-surface-variant text-[11px]">
                       {(p.kebutuhanFasilitas || []).length > 0 ? (
                         <div className="flex flex-wrap gap-1">
@@ -571,6 +576,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                         </button>
                       </div>
                     </td>
+                    <td className="py-3 px-4"><ScoreCell participant={p} field="nilaiPostest" onSaved={(np) => setParticipants(prev => prev.map(x => x.id === np.id ? np : x))} /></td>
                   </tr>
                 ))}
               </tbody>

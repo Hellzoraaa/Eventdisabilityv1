@@ -10,6 +10,8 @@ interface TPQManagementProps {
   onProgramsUpdated?: (programs: TPQProgram[]) => void;
 }
 
+export const JENIS_PENDIDIKAN_OPTIONS = ['TPQ', 'Madrasah Diniyah', 'Pondok Pesantren', 'SLB', 'Majelis Taklim', 'Lembaga Kursus', 'Lainnya'];
+
 const EMPTY_FORM = {
   namaProgram: '',
   jenisTPQ: 'isyarat' as 'isyarat' | 'braille',
@@ -101,7 +103,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
   const kategoriOptions = getKategoriOptions('Tunanetra Dan Tunarungu');
   const toggleSelection = (items: string[], setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) =>
     setter(items.includes(value) ? items.filter(item => item !== value) : [...items, value]);
-  const [durasiPendidikan, setDurasiPendidikan] = useState('Program 3 Minggu');
+  const [jenisPendidikan, setJenisPendidikan] = useState('TPQ');
   const [waLink, setWaLink] = useState('');
   const [waProgramId, setWaProgramId] = useState<string | null>(null);
   const [waSaving, setWaSaving] = useState(false);
@@ -140,7 +142,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
     setEditingStatus(null);
     setForm({ ...EMPTY_FORM, provinsi: currentUser.province || '', kota: currentUser.city || '' });
     setKategoriPendidikan([]); setDisabilitasPendidikan([]);
-    setDurasiPendidikan('Program 3 Minggu'); setWaLink(''); setDocumentationPhotos([]); setPhotoError('');
+    setJenisPendidikan('TPQ'); setWaLink(''); setDocumentationPhotos([]); setPhotoError('');
     setError(null);
     setSuccess(null);
   };
@@ -162,20 +164,6 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
     if (!form.hariPertemuan.length) update('hariPertemuan', ['Senin']);
     const coordinates = form.koordinat.trim() ? parseCoordinate(form.koordinat) : { latitude: 0, longitude: 0 };
     if (!coordinates) { setError('Koordinat harus ditulis dengan format Latitude, Longitude. Contoh: -6.9175, 107.6191'); return; }
-    if (form.tanggalSelesai < form.tanggalMulai) { setError('Tanggal selesai tidak boleh sebelum tanggal mulai.'); return; }
-    const durationMatch = durasiPendidikan.trim().match(/^(?:program\s*)?(\d+)\s*(hari|minggu|bulan|tahun)$/i);
-    if (!durationMatch || Number(durationMatch[1]) < 1) { setError('Format durasi harus seperti “Program 3 Minggu”.'); return; }
-    const durationAmount = Number(durationMatch[1]);
-    const durationUnit = durationMatch[2].toLowerCase();
-    const startDate = new Date(`${form.tanggalMulai}T00:00:00`);
-    const endDate = new Date(`${form.tanggalSelesai}T00:00:00`);
-    const maxDate = new Date(startDate);
-    if (durationUnit === 'hari') maxDate.setDate(maxDate.getDate() + durationAmount - 1);
-    else if (durationUnit === 'minggu') maxDate.setDate(maxDate.getDate() + durationAmount * 7 - 1);
-    else if (durationUnit === 'bulan') { const next = addCalendarMonths(maxDate, durationAmount); next.setDate(next.getDate() - 1); maxDate.setTime(next.getTime()); }
-    else { maxDate.setFullYear(maxDate.getFullYear() + durationAmount); maxDate.setDate(maxDate.getDate() - 1); }
-    if (endDate > maxDate) { setError(`Tanggal selesai melewati durasi ${durasiPendidikan}. Maksimal tanggal ${maxDate.toLocaleDateString('id-ID')}.`); return; }
-    if (form.tanggalMulai && form.tanggalSelesai && endDate < startDate) { setError('Tanggal selesai tidak boleh sebelum tanggal mulai.'); return; }
 
     setIsSubmitting(true);
     try {
@@ -184,8 +172,12 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
         jenisTPQ: kategoriPendidikan.some(k => findKategori(k)?.jenis === 'braille') ? 'braille' : (kategoriPendidikan.length ? 'isyarat' : form.jenisTPQ),
         kuotaPeserta: Number(form.kuotaPeserta || 30),
         targetPeserta: disabilitasPendidikan.join(', '),
-        tujuanPembelajaran: `TPQ_META:${JSON.stringify({ kategoriPendidikan, jenisPesertaPendidikan: disabilitasPendidikan, durasi: durasiPendidikan })}`,
-        durasiProgram: durasiPendidikan.trim(),
+        tujuanPembelajaran: `TPQ_META:${JSON.stringify({ kategoriPendidikan, jenisPesertaPendidikan: disabilitasPendidikan, jenisPendidikan })}`,
+        durasiProgram: '',
+        tanggalMulai: null,
+        tanggalSelesai: null,
+        benefitProgram: '',
+        lokasiDanAlamat: form.lokasiDanAlamat.split(' — ')[0] || form.namaProgram,
         fotoDokumentasi: documentationPhotos,
         linkGrupWa: '',
         frekuensiPertemuan: form.frekuensiPertemuan,
@@ -285,7 +277,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
       lokasiDanAlamat: program.lokasiDanAlamat,
       koordinat: `${program.latitude}, ${program.longitude}`,
     });
-    setDurasiPendidikan((program as any).durasiProgram || 'Program 3 Minggu');
+    try { const raw = String(program.tujuanPembelajaran || ''); setJenisPendidikan(raw.startsWith('TPQ_META:') ? (JSON.parse(raw.slice(9)).jenisPendidikan || 'TPQ') : 'TPQ'); } catch { setJenisPendidikan('TPQ'); }
     setDocumentationPhotos((program as any).fotoDokumentasi || []);
     setWaLink('');
     if (currentUser.role === 'superadmin' && program.status === 'disetujui') fetch(`/api/tpq/${program.id}/wa-link`).then(r => r.ok ? r.json() : Promise.reject()).then(d => setWaLink(d.waLink || '')).catch(() => setWaLink(''));
@@ -300,10 +292,10 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold uppercase tracking-wide">
             <Icon name="menu_book" className="text-[16px]" />
-            Pendidikan TPQ
+            Pendidikan
           </div>
-          <h1 className="text-[24px] md:text-[28px] font-semibold text-on-surface mt-3">Pendidikan TPQ Al-Qur’an Disabilitas</h1>
-          <p className="text-[13px] text-on-surface-variant mt-1.5 max-w-2xl">Kelola program pendidikan TPQ Al-Qur’an Isyarat atau Braille secara terpisah dari kegiatan Event.</p>
+          <h1 className="text-[24px] md:text-[28px] font-semibold text-on-surface mt-3">Kelola Pendidikan Al-Qur’an Disabilitas</h1>
+          <p className="text-[13px] text-on-surface-variant mt-1.5 max-w-2xl">Kelola lembaga pendidikan Al-Qur’an (TPQ, Madrasah Diniyah, Pesantren, SLB, dll.) secara terpisah dari kegiatan Event.</p>
         </div>
         <button onClick={() => { resetForm(); setActiveTab('ajukan'); }} className="inline-flex items-center gap-2 px-5 py-3 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[13px] font-semibold shadow-sm cursor-pointer shrink-0">
           <Icon name="add_circle" className="text-[18px]" />
@@ -312,8 +304,8 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
       </div>
 
       <div className="flex items-center gap-2 border-b border-outline-variant/30 pb-3 overflow-x-auto">
-        <button onClick={() => setActiveTab('daftar')} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'daftar' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{currentUser.role === 'superadmin' ? 'Semua Program TPQ' : 'Program TPQ Saya'} ({programs.length})</button>
-        <button onClick={() => { resetForm(); setActiveTab('ajukan'); }} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'ajukan' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{editingId ? 'Perbaiki Program' : 'Form Pendidikan Baru'}</button>
+        <button onClick={() => setActiveTab('daftar')} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'daftar' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{currentUser.role === 'superadmin' ? 'Semua Pendidikan' : 'Pendidikan Saya'} ({programs.length})</button>
+        <button onClick={() => { resetForm(); setActiveTab('ajukan'); }} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'ajukan' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{editingId ? 'Perbaiki Pengajuan' : 'Form Pengajuan Pendidikan'}</button>
         <button onClick={() => setActiveTab('peserta')} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'peserta' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>Data Peserta Pendidikan</button>
       </div>
 
@@ -322,11 +314,11 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
 
       {activeTab === 'daftar' && (
         <div className="space-y-4">
-          {isLoading ? <div className="p-10 text-center text-on-surface-variant">Memuat program TPQ...</div> : programs.length === 0 ? (
+          {isLoading ? <div className="p-10 text-center text-on-surface-variant">Memuat data pendidikan...</div> : programs.length === 0 ? (
             <div className="p-12 text-center bg-surface-container-lowest rounded-2xl border border-outline-variant/30">
               <Icon name="menu_book" className="text-[48px] text-outline" />
-              <h3 className="font-semibold text-on-surface mt-3">Belum Ada Program TPQ</h3>
-              <p className="text-[13px] text-on-surface-variant mt-2 mb-5">Ajukan program TPQ Al-Qur’an Isyarat atau Braille untuk ditinjau Superadmin.</p>
+              <h3 className="font-semibold text-on-surface mt-3">Belum Ada Pendidikan</h3>
+              <p className="text-[13px] text-on-surface-variant mt-2 mb-5">Daftarkan lembaga pendidikan Anda untuk ditinjau Superadmin.</p>
               <button onClick={() => { resetForm(); setActiveTab('ajukan'); }} className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold">Ajukan Program</button>
             </div>
           ) : programs.map(program => (
@@ -342,11 +334,11 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
               {program.status === 'ditolak' && program.alasanPenolakan && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3"><div className="text-[11px] font-bold uppercase text-amber-900">Catatan revisi dari Super Admin</div><p className="mt-1 text-[13px] text-amber-900 whitespace-pre-line">{program.alasanPenolakan}</p>{currentUser.role !== 'superadmin' && <p className="mt-2 text-[12px] text-amber-800">Silakan klik <strong>Perbaiki Data</strong>, sesuaikan data berdasarkan catatan, lalu kirim revisi untuk ditinjau ulang.</p>}</div>}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
                 <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Status</div><div className="text-[12px] font-semibold mt-1">{program.status.replaceAll('_', ' ')}</div></div>{currentUser.role === 'superadmin' && <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Publikasi Web</div><div className="text-[12px] font-semibold mt-1">{program.izinkanPublikasi ? 'Diizinkan' : 'Belum diizinkan'}</div></div>}
-                <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Pertemuan</div><div className="text-[12px] font-semibold mt-1">{(program as any).durasiProgram || program.frekuensiPertemuan || '-'}</div></div>
-                <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Periode</div><div className="text-[12px] font-semibold mt-1">{formatDate(program.tanggalMulai)} - {formatDate(program.tanggalSelesai)}</div></div>
+                <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Pertemuan</div><div className="text-[12px] font-semibold mt-1">{program.frekuensiPertemuan || '-'}</div></div>
+                <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Jenis Pendidikan</div><div className="text-[12px] font-semibold mt-1">{(() => { const raw = String(program.tujuanPembelajaran || ""); try { return raw.startsWith("TPQ_META:") ? (JSON.parse(raw.slice(9)).jenisPendidikan || "TPQ") : "TPQ"; } catch { return "TPQ"; } })()}</div></div>
                 <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Kuota</div><div className="text-[12px] font-semibold mt-1">{program.kuotaPeserta} peserta</div></div>
               </div>
-              {(program as any).fotoDokumentasi?.length > 0 && <div className="mt-4 flex flex-wrap gap-3">{(program as any).fotoDokumentasi.map((photo: string, i: number) => <a key={i} href={photo} target="_blank" rel="noreferrer"><img src={photo} alt={`Dokumentasi ${i+1}`} className="w-24 h-20 object-cover rounded-lg border" /></a>)}</div>}
+              {(program as any).fotoDokumentasi?.length > 0 && <div className="mt-4 flex flex-wrap gap-3">{(program as any).fotoDokumentasi.map((photo: string, i: number) => <a key={i} href={photo} target="_blank" rel="noreferrer"><img src={photo} alt={`Fasilitas ${i+1}`} className="w-24 h-20 object-cover rounded-lg border" /></a>)}</div>}
               {program.status === 'disetujui' && (!program.izinkanPublikasi || currentUser.role === 'superadmin') && <div className="mt-4 rounded-xl border border-green-200 bg-green-50/60 p-4 space-y-2">
                 <div><h4 className="text-[13px] font-bold text-green-900">Link Grup WhatsApp</h4><p className="text-[12px] text-green-800 mt-1">Lengkapi link ini sebelum Super Admin mengizinkan publikasi. Link akan diberikan kepada peserta setelah pendaftaran berhasil.</p></div>
                 {waProgramId === program.id ? <form onSubmit={async (e) => { e.preventDefault(); setError(null); setSuccess(null); setWaSaving(true); try { const r = await fetch(`/api/tpq/${encodeURIComponent(program.id)}/wa-link`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ waLink: waLink.trim() }) }); const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Gagal menyimpan link WhatsApp.'); setSuccess('Link grup WhatsApp berhasil disimpan.'); setWaProgramId(null); setWaLink(''); await loadPrograms(); } catch (e) { setError(e instanceof Error ? e.message : 'Gagal menyimpan link WhatsApp.'); } finally { setWaSaving(false); } }} className="flex flex-col sm:flex-row gap-2">
@@ -378,23 +370,20 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
       {activeTab === 'ajukan' && (
         <form onSubmit={submit} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-6 md:p-8 shadow-sm space-y-5 text-[13px]">
           <style>{`.request-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.request-field{display:flex;flex-direction:column;gap:7px}.request-field label{font-size:13px;font-weight:650;color:#182230}.request-field input,.request-field select,.request-field textarea{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:9px;background:white;color:#182230;font:inherit}.request-field textarea{min-height:82px}.request-full{grid-column:1/-1}.request-options{display:flex;gap:14px;flex-wrap:wrap}.request-options label{display:flex;align-items:center;gap:6px;font-weight:500}.request-options input[type=checkbox]{width:auto;flex:0 0 auto;margin-top:2px}@media(max-width:600px){.request-grid{grid-template-columns:1fr}.request-full{grid-column:auto}}`}</style>
-          <div><h2 className="text-[20px] font-semibold text-on-surface">{editingId ? 'Perbaiki Program Pendidikan TPQ' : 'Daftarkan Pendidikan'}</h2><p className="text-[13px] text-on-surface-variant mt-1">Form khusus program pendidikan TPQ. Target Peserta dan Kuota tidak ditampilkan.</p></div>
+          <div><h2 className="text-[20px] font-semibold text-on-surface">{editingId ? 'Perbaiki Pengajuan Pendidikan' : 'Daftarkan Pendidikan'}</h2><p className="text-[13px] text-on-surface-variant mt-1">Formulir pengajuan lembaga pendidikan Al-Qur’an untuk sahabat disabilitas. Pengajuan akan ditinjau Super Admin.</p></div>
           <div className="request-grid">
 
-            <div className="request-field request-full"><label>Nama Pendidikan *</label><input required value={form.namaProgram} onChange={e=>update('namaProgram',e.target.value)} /></div>
+            <div className="request-field"><label>Nama Lembaga Pendidikan *</label><input required value={form.namaProgram} onChange={e=>update('namaProgram',e.target.value)} /></div>
+            <div className="request-field"><label>Jenis Pendidikan *</label><select required value={jenisPendidikan} onChange={e=>setJenisPendidikan(e.target.value)}>{JENIS_PENDIDIKAN_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}</select></div>
             <div className="request-field"><label>Jenis Peserta / Disabilitas</label><div className="request-options" role="group" aria-label="Pilih jenis peserta">
               {TPQ_MENU.map(group => <label key={group.label} className="!items-start rounded-lg border border-slate-200 p-2.5"><input type="checkbox" checked={disabilitasPendidikan.includes(group.label)} onChange={() => toggleSelection(disabilitasPendidikan, setDisabilitasPendidikan, group.label)} /> <span>{group.label}</span></label>)}
             </div><small>Boleh memilih satu atau beberapa jenis peserta. Pilihan kategori tidak dibatasi oleh pilihan ini.</small></div>
-            <div className="request-field"><label>Kategori Pendidikan TPQ</label><div className="request-options" role="group" aria-label="Pilih kategori pendidikan TPQ">
+            <div className="request-field"><label>Program</label><div className="request-options" role="group" aria-label="Pilih program">
               {kategoriOptions.map(k => <label key={k.label} className="!items-start rounded-lg border border-slate-200 p-2.5"><input type="checkbox" checked={kategoriPendidikan.includes(k.label)} onChange={() => toggleSelection(kategoriPendidikan, setKategoriPendidikan, k.label)} /> <span>{k.label}</span></label>)}
             </div><small>Boleh memilih beberapa kategori sekaligus, termasuk kombinasi kategori apa pun.</small></div>
             <div className="request-field request-full"><label>Deskripsi</label><textarea value={form.deskripsiProgram} onChange={e=>update('deskripsiProgram',e.target.value)} /></div>
-            <div className="request-field request-full"><label>Durasi Program *</label><input required value={durasiPendidikan} onChange={e=>setDurasiPendidikan(e.target.value)} placeholder="Program 3 Minggu" title="Contoh: Program 3 Minggu" /><small>Template durasi: <strong>Durasi = Program 3 Minggu</strong>. Isi angka dan satuan, misalnya “Program 2 Bulan”. Tanggal selesai akan dibatasi sesuai durasi yang diisi.</small></div>
-            <div className="request-field"><label>Tanggal Mulai *</label><input required type="date" value={form.tanggalMulai} onChange={e=>update('tanggalMulai',e.target.value)} /></div>
-            <div className="request-field"><label>Tanggal Selesai *</label><input required type="date" min={form.tanggalMulai || undefined} max={maxEndDateForDuration(form.tanggalMulai, durasiPendidikan)} value={form.tanggalSelesai} onChange={e=>update('tanggalSelesai',e.target.value)} /></div>
-            <div className="request-field"><label>Lokasi *</label><input required value={form.lokasiDanAlamat.split(' — ')[0] || ''} onChange={e=>update('lokasiDanAlamat',`${e.target.value} — ${form.lokasiDanAlamat.split(' — ').slice(1).join(' — ')}`)} placeholder="Nama lokasi" /></div>
-            <div className="request-field"><label>Alamat *</label><input required value={form.lokasiDanAlamat.includes(' — ')?form.lokasiDanAlamat.split(' — ').slice(1).join(' — '):form.lokasiDanAlamat} onChange={e=>update('lokasiDanAlamat',`${form.lokasiDanAlamat.split(' — ')[0] || ''} — ${e.target.value}`)} placeholder="Alamat lengkap" /></div>
-            <IndonesiaLocationFields
+                        <div className="request-field"><label>Lokasi Lembaga *</label><input required value={form.lokasiDanAlamat.split(' — ')[0] || ''} onChange={e=>update('lokasiDanAlamat',`${e.target.value} — ${form.lokasiDanAlamat.split(' — ').slice(1).join(' — ')}`)} placeholder="Nama lokasi" /></div>
+                        <IndonesiaLocationFields
               province={form.provinsi}
               city={form.kota}
               variant="mitra"
@@ -403,9 +392,8 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
               onCityChange={(value) => setForm(previous => ({ ...previous, kota: value }))}
             />
             <div className="request-field request-full"><label>Koordinat</label><input value={form.koordinat} onChange={e=>update('koordinat',e.target.value)} placeholder="-6.200000, 106.816666" /></div>
-            <div className="request-field request-full"><label>Upload Dokumentasi</label><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={e=>{const files=Array.from(e.target.files||[]);setPhotoError('');if(documentationPhotos.length + files.length > 5){setPhotoError('Maksimal 5 foto dokumentasi per program.');return;}if(files.some(f=>!['image/png','image/jpeg','image/webp'].includes(f.type)||f.size>5*1024*1024)){setPhotoError('Format JPG, PNG, WebP; maksimal 5 MB per foto.');return;}files.forEach(file=>{const reader=new FileReader();reader.onload=()=>setDocumentationPhotos(prev=>[...prev,String(reader.result)]);reader.readAsDataURL(file);});e.currentTarget.value='';}} /><small>Unggah foto dokumentasi JPG/PNG/WebP, maksimal 5 MB per foto.</small>{photoError&&<p className="text-red-600">{photoError}</p>}<div className="flex flex-wrap gap-3 mt-2">{documentationPhotos.map((photo,i)=><div key={i} className="relative"><img src={photo} alt={`Dokumentasi ${i+1}`} className="w-24 h-20 object-cover rounded-lg border" /><button type="button" onClick={()=>setDocumentationPhotos(prev=>prev.filter((_,j)=>j!==i))} className="absolute -top-2 -right-2 rounded-full bg-red-600 text-white w-6 h-6">×</button></div>)}</div></div>
-            <div className="request-field request-full"><label>Benefit</label><textarea value={form.benefitProgram} onChange={e=>update('benefitProgram',e.target.value)} /></div>
-          </div>
+            <div className="request-field request-full"><label>Fasilitas</label><input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={e=>{const files=Array.from(e.target.files||[]);setPhotoError('');if(documentationPhotos.length + files.length > 5){setPhotoError('Maksimal 5 foto fasilitas per lembaga.');return;}if(files.some(f=>!['image/png','image/jpeg','image/webp'].includes(f.type)||f.size>5*1024*1024)){setPhotoError('Format JPG, PNG, WebP; maksimal 5 MB per foto.');return;}files.forEach(file=>{const reader=new FileReader();reader.onload=()=>setDocumentationPhotos(prev=>[...prev,String(reader.result)]);reader.readAsDataURL(file);});e.currentTarget.value='';}} /><small>Unggah foto fasilitas lembaga (ruang belajar, alat bantu, dll.) JPG/PNG/WebP, maksimal 5 MB per foto.</small>{photoError&&<p className="text-red-600">{photoError}</p>}<div className="flex flex-wrap gap-3 mt-2">{documentationPhotos.map((photo,i)=><div key={i} className="relative"><img src={photo} alt={`Fasilitas ${i+1}`} className="w-24 h-20 object-cover rounded-lg border" /><button type="button" onClick={()=>setDocumentationPhotos(prev=>prev.filter((_,j)=>j!==i))} className="absolute -top-2 -right-2 rounded-full bg-red-600 text-white w-6 h-6">×</button></div>)}</div></div>
+                      </div>
           {error && <p className="rounded-lg bg-red-50 text-red-700 p-3">{error}</p>}{success && <p className="rounded-lg bg-green-50 text-green-700 p-3">{success}</p>}
           <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant/30"><button type="button" onClick={()=>{resetForm();setActiveTab('daftar')}} className="px-5 py-2.5 rounded-xl text-[13px] font-semibold">Batal</button><button disabled={isSubmitting} type="submit" className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold disabled:opacity-50">{isSubmitting?'Menyimpan...':editingId?'Kirim Revisi':'Kirim'}</button></div>
         </form>

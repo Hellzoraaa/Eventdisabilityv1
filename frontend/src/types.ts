@@ -113,6 +113,7 @@ export interface TrainingProposal {
   alasanPenolakan?: string;
   tanggalPersetujuan?: string;
   linkPendaftaran?: string;
+  linkGrupWa?: string;
   kuotaDisetujui?: number;
   isAktif: boolean;
   createdAt: string;
@@ -189,6 +190,10 @@ export interface Participant {
   kebutuhanFasilitas: string[];
   catatanKhusus: string;
   statusKehadiran: 'terdaftar' | 'hadir' | 'batal';
+  jenisKelamin?: string;
+  alamat?: string;
+  nilaiPretest?: number | null;
+  nilaiPostest?: number | null;
   waktuDaftar: string;
 }
 

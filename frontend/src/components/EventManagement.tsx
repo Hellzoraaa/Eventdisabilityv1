@@ -177,7 +177,6 @@ export const EventManagement: React.FC<EventManagementProps> = ({
     persyaratan: '',
     batasPendaftaran: '',
     targetDanKuotaPeserta: 50,
-    kuotaDisetujui: 50,
     status: 'menunggu_persetujuan' as 'menunggu_persetujuan' | 'disetujui' | 'ditolak',
     isAktif: true,
     fotoDokumentasi: [] as string[],
@@ -235,7 +234,6 @@ export const EventManagement: React.FC<EventManagementProps> = ({
       persyaratan: ev.persyaratan || '',
       batasPendaftaran: ev.batasPendaftaran ? String(ev.batasPendaftaran).slice(0, 10) : '',
       targetDanKuotaPeserta: ev.targetDanKuotaPeserta,
-      kuotaDisetujui: ev.kuotaDisetujui || ev.targetDanKuotaPeserta,
       status: ev.status,
       isAktif: ev.isAktif,
       fotoDokumentasi: ev.fotoDokumentasi || [],
@@ -865,26 +863,13 @@ export const EventManagement: React.FC<EventManagementProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] font-semibold text-on-surface mb-1">
-                    Target Kuota Peserta *
+                    Kuota Peserta *
                   </label>
                   <input
                     type="number"
                     min={1}
                     value={editForm.targetDanKuotaPeserta}
                     onChange={(e) => setEditForm({ ...editForm, targetDanKuotaPeserta: Number(e.target.value) })}
-                    className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/40 rounded-xl text-[13px] text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[12px] font-semibold text-on-surface mb-1">
-                    Kuota Disetujui
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={editForm.kuotaDisetujui}
-                    onChange={(e) => setEditForm({ ...editForm, kuotaDisetujui: Number(e.target.value) })}
                     className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/40 rounded-xl text-[13px] text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>

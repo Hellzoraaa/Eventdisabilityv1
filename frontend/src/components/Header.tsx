@@ -13,6 +13,8 @@ interface HeaderProps {
     | 'reports'
     | 'manage_events'
     | 'manage_tpq'
+    | 'bank_soal'
+    | 'kosakata'
     | 'approvals'
     | 'participants'
     | 'disabilities'
@@ -96,7 +98,11 @@ export const Header: React.FC<HeaderProps> = ({
       case 'manage_events':
         return 'Kelola Event';
       case 'manage_tpq':
-        return 'Kelola Pendidikan TPQ';
+        return 'Kelola Pendidikan';
+      case 'bank_soal':
+        return 'Bank Soal';
+      case 'kosakata':
+        return 'Kosakata Isyarat Keislaman';
       case 'approvals':
         return 'Persetujuan Pengajuan';
       case 'participants':

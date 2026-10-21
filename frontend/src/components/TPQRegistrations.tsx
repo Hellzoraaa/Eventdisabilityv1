@@ -12,6 +12,7 @@ export interface TPQRegistration {
   usia: number;
   kategoriDisabilitas: string;
   gender: string;
+  alamat?: string;
   catatanKhusus: string;
   waktuDaftar: string;
 }
@@ -77,11 +78,11 @@ export const TPQRegistrations: React.FC<Props> = ({ scope }) => {
   const totalRungu = rows.filter(r => r.kategoriDisabilitas === 'Tunarungu').length;
 
   const exportCsv = () => {
-    const header = ['No', 'Nama Lengkap', 'Usia', 'Gender', 'Kategori Peserta', 'No WhatsApp', 'Email', 'Program TPQ'];
+    const header = ['No', 'Nama Lengkap', 'Usia', 'Jenis Kelamin', 'Alamat', 'Kategori Peserta', 'No WhatsApp', 'Email', 'Lembaga Pendidikan'];
     if (scope === 'superadmin') header.push('Mitra Penyelenggara');
     header.push('Catatan Khusus', 'Waktu Pendaftaran');
     const lines = filtered.map((r, i) => {
-      const cols: unknown[] = [i + 1, r.namaLengkap, r.usia || '', r.gender || '', r.kategoriDisabilitas, r.noWa, r.email, r.programName];
+      const cols: unknown[] = [i + 1, r.namaLengkap, r.usia || '', r.gender || '', (r as any).alamat || '', r.kategoriDisabilitas, r.noWa, r.email, r.programName];
       if (scope === 'superadmin') cols.push(r.mitraName);
       cols.push(r.catatanKhusus, r.waktuDaftar);
       return cols.map(csvCell).join(',');
@@ -101,7 +102,7 @@ export const TPQRegistrations: React.FC<Props> = ({ scope }) => {
     <div className="space-y-5">
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
         {[
-          ['Total Peserta TPQ', rows.length],
+          ['Total Peserta', rows.length],
           ['Tunanetra', totalNetra],
           ['Tunarungu', totalRungu],
         ].map(([label, value]) => (
@@ -121,7 +122,7 @@ export const TPQRegistrations: React.FC<Props> = ({ scope }) => {
           className={`${inputCls} flex-1 min-w-0`}
         />
         <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} className={inputCls}>
-          <option value="all">Semua Program TPQ</option>
+          <option value="all">Semua Lembaga Pendidikan</option>
           {programs.map(([id, name]) => <option key={id} value={id}>{name.length > 40 ? `${name.slice(0, 40)}…` : name}</option>)}
         </select>
         <select value={kategoriFilter} onChange={e => setKategoriFilter(e.target.value)} className={inputCls}>
@@ -145,7 +146,7 @@ export const TPQRegistrations: React.FC<Props> = ({ scope }) => {
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center text-on-surface-variant text-[14px]">
             {rows.length === 0
-              ? 'Belum ada peserta yang mendaftar pada program TPQ.'
+              ? 'Belum ada peserta yang mendaftar pada lembaga pendidikan.'
               : 'Tidak ada peserta yang cocok dengan filter.'}
           </div>
         ) : (
@@ -155,9 +156,10 @@ export const TPQRegistrations: React.FC<Props> = ({ scope }) => {
                 <tr>
                   <th className="py-3 px-4">Nama Lengkap & Usia</th>
                   <th className="py-3 px-4">Kategori</th>
-                  <th className="py-3 px-4">Gender</th>
+                  <th className="py-3 px-4">Jenis Kelamin</th>
+                  <th className="py-3 px-4">Alamat</th>
                   <th className="py-3 px-4">Kontak (WhatsApp & Email)</th>
-                  <th className="py-3 px-4">Program TPQ</th>
+                  <th className="py-3 px-4">Lembaga Pendidikan</th>
                   {scope === 'superadmin' && <th className="py-3 px-4">Mitra</th>}
                   <th className="py-3 px-4">Catatan</th>
                   <th className="py-3 px-4">Tgl Daftar</th>
@@ -171,6 +173,7 @@ export const TPQRegistrations: React.FC<Props> = ({ scope }) => {
                       <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-primary-container text-on-primary-container uppercase tracking-wide">{r.kategoriDisabilitas}</span>
                     </td>
                     <td className="py-3 px-4">{r.gender || '-'}</td>
+                    <td className="py-3 px-4 max-w-[16rem] whitespace-normal break-words" style={{ overflowWrap: 'anywhere' }}>{(r as any).alamat || '-'}</td>
                     <td className="py-3 px-4">
                       <a href={`https://wa.me/62${r.noWa.replace(/^0/, '')}`} target="_blank" rel="noreferrer" className="text-primary hover:underline font-mono">{r.noWa}</a>
                       <div className="text-on-surface-variant">{r.email || '-'}</div>

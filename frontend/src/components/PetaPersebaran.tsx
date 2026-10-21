@@ -11,6 +11,10 @@ import { VerifiedBadge } from './VerifiedBadge.tsx';
 import { EventDetailModal } from './EventDetailModal.tsx';
 import { isTPQMapId } from './TPQHomeSection.tsx';
 
+// Warna penanda peta: Pendidikan = biru, Event = hijau.
+const MAP_COLOR_PENDIDIKAN = '#2563eb';
+const MAP_COLOR_EVENT = '#16a34a';
+
 export interface EventDisabilityCategoryInfo {
   id: string;
   kode: string;
@@ -386,7 +390,7 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
 
     filteredEvents.forEach(ev => {
       const cat = getEventDisabilityCategory(ev, activeMasterDisabilities);
-      const pinColor = cat.warnaHex || '#006316';
+      const pinColor = isTPQMapId(String(ev.id)) ? MAP_COLOR_PENDIDIKAN : MAP_COLOR_EVENT;
 
       // Custom Leaflet DivIcon with database color
       const customEventIcon = L.divIcon({
@@ -431,14 +435,14 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
           <Icon name="domain" className="text-[15px] text-slate-400" />
           <span class="truncate">${ev.mitraOrg || ev.mitraName || 'Yayasan Penyelenggara'}</span>
         </div>
-        <div class="space-y-1.5 text-[11.5px] text-slate-600 mb-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+        <div class="space-y-1.5 text-[11.5px] text-slate-600 mb-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 w-full overflow-hidden">
           <div class="flex items-center gap-1.5">
             <Icon name="calendar_month" className="text-[14px] text-slate-500" />
             <span class="font-semibold text-slate-800">${ev.tanggalKegiatan}</span>
           </div>
-          <div class="flex items-center gap-1.5">
-            <Icon name="location_on" className="text-[14px] text-slate-500" />
-            <span class="truncate">${ev.kota} (${ev.lokasiDanAlamat})</span>
+          <div class="flex items-start gap-1.5 min-w-0">
+            <Icon name="location_on" className="text-[14px] text-slate-500 shrink-0 mt-0.5" />
+            <span class="min-w-0 flex-1 leading-snug" style="overflow-wrap:anywhere;word-break:break-word;white-space:normal;">${ev.kota} (${ev.lokasiDanAlamat})</span>
           </div>
           <div class="flex items-center gap-1.5">
             <Icon name="group" className="text-[14px] text-slate-500" />
@@ -592,45 +596,16 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
       </div>
 
       {/* Main Map & Event Sidebar Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="flex flex-col gap-6">
         
         {/* Map Container (Left ~65%) */}
-        <div className="lg:col-span-7 xl:col-span-8">
+        <div className="w-full">
           <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden relative">
             <div
               ref={mapContainerRef}
-              className="w-full h-[520px] sm:h-[600px] z-10"
-              style={{ minHeight: '520px' }}
+              className="w-full h-[460px] sm:h-[560px] lg:h-[72vh] z-10"
+              style={{ minHeight: '460px' }}
             />
-
-            {/* Dynamic Map Legend: Populated directly from database master categories */}
-            <div className="absolute bottom-4 left-4 z-[20] bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-md text-[11.5px] max-w-[280px]">
-              <div className="font-extrabold text-slate-900 mb-2.5 uppercase tracking-wider text-[10.5px] flex items-center gap-1.5">
-                <Icon name="pin_drop" className="text-[16px] text-slate-700" />
-                <span>Penanda Kategori (Database)</span>
-              </div>
-              <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-                {availableCategories.map(cat => (
-                  <div key={cat.id || cat.kode} className="flex items-center gap-2">
-                    <div
-                      className="w-4.5 h-4.5 rounded-full flex items-center justify-center text-white shrink-0 shadow-2xs"
-                      style={{ backgroundColor: cat.warnaHex }}
-                    >
-                      <Icon name="location_on" className="text-[11px]" />
-                    </div>
-                    <span className="font-bold truncate" style={{ color: cat.warnaHex }}>
-                      {cat.nama}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Informative Note */}
-              <div className="mt-2.5 pt-2 border-t border-slate-200/80 text-[10px] text-slate-500 flex items-center gap-1 font-medium">
-                <Icon name="database" className="text-[12px] text-slate-400" />
-                <span>Data tersinkronisasi realtime dengan database</span>
-              </div>
-            </div>
 
             {/* Event Counter Badge on Map */}
             <div className="absolute top-4 right-4 z-[20] bg-slate-900/90 backdrop-blur-md text-white px-3.5 py-1.5 rounded-xl text-[11px] font-bold shadow-md flex items-center gap-1.5">
@@ -638,22 +613,39 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
               <span>{filteredEvents.length} Titik Event di Peta</span>
             </div>
           </div>
+          {/* Legenda kategori: di bawah peta */}
+          <div className="mt-3 bg-white rounded-2xl border border-slate-200/90 shadow-xs px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-x-6 gap-y-2 text-[12px]">
+            <div className="font-extrabold text-slate-900 uppercase tracking-wider text-[10.5px] flex items-center gap-1.5 shrink-0">
+              <Icon name="pin_drop" className="text-[16px] text-slate-700" />
+              <span>Penanda Kategori</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+              {[{ nama: 'Pendidikan', warna: MAP_COLOR_PENDIDIKAN }, { nama: 'Event', warna: MAP_COLOR_EVENT }].map(item => (
+                <div key={item.nama} className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-white shrink-0 shadow-2xs" style={{ backgroundColor: item.warna }}>
+                    <Icon name="location_on" className="text-[11px]" />
+                  </div>
+                  <span className="font-bold" style={{ color: item.warna }}>{item.nama}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Sidebar: Event Cards List (Right ~35%) */}
-        <div className="lg:col-span-5 xl:col-span-4 space-y-3.5">
+        <div className="w-full space-y-3.5">
           <div className="flex items-center justify-between pb-1">
             <span className="text-[13px] font-extrabold text-slate-800">
-              Daftar Lokasi Pelatihan ({filteredEvents.length})
+              Daftar Event & Pendidikan ({filteredEvents.length})
             </span>
             <span className="text-[11px] text-slate-500">
               Klik kartu untuk sorot titik
             </span>
           </div>
 
-          <div className="max-h-[560px] overflow-y-auto space-y-3 pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredEvents.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+              <div className="col-span-full p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                 <Icon name="location_off" className="text-[36px] text-slate-400" />
                 <p className="text-[13px] font-bold text-slate-700">Tidak ada event sesuai filter</p>
                 <p className="text-[11.5px] text-slate-500 max-w-xs mx-auto">
@@ -674,7 +666,7 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
               filteredEvents.map(ev => {
                 const isSelected = selectedEventId === ev.id;
                 const cat = getEventDisabilityCategory(ev, activeMasterDisabilities);
-                const pinColor = cat.warnaHex || '#006316';
+                const pinColor = isTPQMapId(String(ev.id)) ? MAP_COLOR_PENDIDIKAN : MAP_COLOR_EVENT;
 
                 return (
                   <div
@@ -702,7 +694,6 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
                       <span className="px-2 py-0.5 rounded-full bg-[#006316] text-white text-[10px] font-bold">
                         Buka
                       </span>
-                      <span className="text-[11px] font-semibold text-slate-400">{ev.batch || 'Batch 1'}</span>
                     </div>
 
                     <div className="flex items-start gap-3">
@@ -730,9 +721,9 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
                         <Icon name="calendar_month" className="text-[13px] text-slate-400" />
                         <span>{ev.tanggalKegiatan}</span>
                       </span>
-                      <span className="flex items-center gap-1">
-                        <Icon name="place" className="text-[13px] text-slate-400" />
-                        <span className="truncate max-w-[120px]">{ev.kota}, {ev.provinsi}</span>
+                      <span className="flex items-start gap-1 min-w-0 max-w-[55%]">
+                        <Icon name="place" className="text-[13px] text-slate-400 shrink-0 mt-0.5" />
+                        <span className="min-w-0 break-words text-right leading-snug" style={{ overflowWrap: 'anywhere' }}>{ev.kota}, {ev.provinsi}</span>
                       </span>
                     </div>
 

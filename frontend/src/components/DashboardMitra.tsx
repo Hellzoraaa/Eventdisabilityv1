@@ -1,3 +1,5 @@
+import { ScoreCell } from './ScoreCell.tsx';
+import { PERSYARATAN_TEMPLATE, PERSYARATAN_DEFAULT, parsePersyaratan } from '../utils/persyaratanTemplate.ts';
 import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon.tsx';
 import { TPQRegistrations } from './TPQRegistrations.tsx';
@@ -230,7 +232,8 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
   const [alamatEvent, setAlamatEvent] = useState('');
   const [disabilitasEvent, setDisabilitasEvent] = useState('');
   const [benefitEvent, setBenefitEvent] = useState('');
-  const [persyaratanEvent, setPersyaratanEvent] = useState('');
+  const [persyaratanEvent, setPersyaratanEvent] = useState(PERSYARATAN_DEFAULT);
+  const [linkGrupWaEvent, setLinkGrupWaEvent] = useState('');
   const [batasPendaftaranEvent, setBatasPendaftaranEvent] = useState('');
   const [targetDanKuotaPeserta, setTargetDanKuotaPeserta] = useState('50');
   const [kebutuhanPeserta, setKebutuhanPeserta] = useState<string[]>([
@@ -239,6 +242,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
   ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [scoreOverrides, setScoreOverrides] = useState<Record<string, Participant>>({});
   const [selectedProposalForParticipants, setSelectedProposalForParticipants] = useState<string>('all');
 
   const copyToClipboard = (text: string, id: string) => {
@@ -268,7 +272,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
     setKebutuhanPeserta(proposal.kebutuhanPeserta);
     setBenefitEvent(proposal.benefit || '');
     setBatasPendaftaranEvent(proposal.batasPendaftaran || '');
-    setPersyaratanEvent(proposal.persyaratan || '');
+    setPersyaratanEvent(proposal.persyaratan || PERSYARATAN_DEFAULT);
     setActiveTab('ajukan');
   };
 
@@ -287,7 +291,8 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
     setAlamatEvent('');
     setDisabilitasEvent('');
     setBenefitEvent('');
-    setPersyaratanEvent('');
+    setPersyaratanEvent(PERSYARATAN_DEFAULT);
+    setLinkGrupWaEvent('');
     setBatasPendaftaranEvent('');
     setTargetDanKuotaPeserta('50');
     setKebutuhanPeserta(['Mushaf Quran Braille Standar LPMQ']);
@@ -355,6 +360,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
             batasPendaftaran: batasPendaftaranEvent,
             benefit: benefitEvent,
             persyaratan: persyaratanEvent,
+            linkGrupWa: linkGrupWaEvent.trim(),
             kebutuhanPeserta,
           }),
         });
@@ -394,6 +400,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
             batasPendaftaran: batasPendaftaranEvent,
             benefit: benefitEvent,
             persyaratan: persyaratanEvent,
+            linkGrupWa: linkGrupWaEvent.trim(),
             kebutuhanPeserta,
           }),
         });
@@ -772,7 +779,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               {editingProposalId ? 'Perbaiki Permintaan Pelatihan (Revisi)' : 'Daftarkan Event Anda'}
             </h2>
             <p className="text-[13px] text-on-surface-variant mt-1.5 font-medium">
-              Lengkapi formulir spesifikasi kegiatan pelatihan quran disabilitas. Permintaan Anda akan ditinjau oleh Superadmin untuk penetapan kuota & tautan registrasi publik.
+              Lengkapi formulir spesifikasi kegiatan pelatihan quran disabilitas. Permintaan Anda akan ditinjau oleh Superadmin sebelum dipublikasikan.
             </p>
           </div>
 
@@ -815,7 +822,9 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                 variant="mitra"
               />
               <div className="request-field request-full"><label>Koordinat</label><input value={koordinat} onChange={e=>setKoordinat(e.target.value)} placeholder="-6.200000, 106.816666" /></div>
-              <div className="request-field request-full"><label>Persyaratan Peserta</label><textarea rows={4} value={persyaratanEvent} onChange={e=>setPersyaratanEvent(e.target.value)} placeholder={"Contoh:\n1. Mengisi formulir pendaftaran\n2. Bersedia mengikuti kegiatan sampai selesai\n3. Membawa identitas diri"} /><small>Masukkan satu persyaratan pada setiap baris. Persyaratan ini akan ditampilkan pada tab Persyaratan di Detail Event.</small></div>
+              <div className="request-field request-full"><label>Persyaratan Peserta (Template)</label><div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">{PERSYARATAN_TEMPLATE.map(item => { const checked = parsePersyaratan(persyaratanEvent).includes(item); return <label key={item} className="!flex-row items-start gap-2 !font-medium"><input type="checkbox" className="!w-auto mt-0.5" checked={checked} onChange={() => { const cur = parsePersyaratan(persyaratanEvent); setPersyaratanEvent(PERSYARATAN_TEMPLATE.filter(t => t === item ? !checked : cur.includes(t)).join('\n')); }} /><span>{item}</span></label>; })}</div><small>Persyaratan memakai template baku. Centang yang berlaku untuk event ini; daftar tampil pada tab Persyaratan di Detail Event.</small></div>
+              <div className="request-field"><label>Kuota Peserta *</label><input required type="number" min={1} value={targetDanKuotaPeserta} onChange={e=>setTargetDanKuotaPeserta(e.target.value)} placeholder="Contoh: 50" /></div>
+              <div className="request-field"><label>Link Grup WhatsApp (WAG)</label><input type="url" value={linkGrupWaEvent} onChange={e=>setLinkGrupWaEvent(e.target.value)} placeholder="https://chat.whatsapp.com/..." /><small>Dikirim ke peserta setelah berhasil mendaftar.</small></div>
               <div className="request-field request-full"><label>Benefit</label><textarea value={benefitEvent} onChange={e=>setBenefitEvent(e.target.value)} placeholder="Benefit bagi peserta" /></div>
               <div className="request-field"><label>Batas Pendaftaran *</label><input required type="date" value={batasPendaftaranEvent} onChange={e=>setBatasPendaftaranEvent(e.target.value)} /></div>
             </div>
@@ -865,16 +874,18 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                     <th className="p-3.5 rounded-tl-xl">Nama Lengkap</th>
                     <th className="p-3.5">Kategori Disabilitas</th>
                     <th className="p-3.5">Kontak WhatsApp</th>
+                    <th className="p-3.5">Nilai Pretest</th>
                     <th className="p-3.5">Kebutuhan Fasilitas</th>
                     <th className="p-3.5">Event Pelatihan</th>
                     <th className="p-3.5">Catatan</th>
-                    <th className="p-3.5 rounded-tr-xl">Status</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5 rounded-tr-xl">Nilai Postest</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/20">
-                  {myParticipants.map((pt) => (
+                  {myParticipants.map((basePt) => { const pt = scoreOverrides[basePt.id] || basePt; const onScore = (np: Participant) => setScoreOverrides(prev => ({ ...prev, [np.id]: { ...basePt, ...np } })); return (
                     <tr key={pt.id} className="hover:bg-surface-container-low/50 transition-colors">
-                      <td className="p-3.5 font-semibold text-on-surface">{pt.namaLengkap} ({pt.usia} th)</td>
+                      <td className="p-3.5 font-semibold text-on-surface">{pt.namaLengkap} ({pt.usia} th)<span className="block text-[11px] font-normal text-on-surface-variant" style={{ overflowWrap: 'anywhere' }}>{[pt.jenisKelamin, pt.alamat].filter(Boolean).join(' • ')}</span></td>
                       <td className="p-3.5">
                         <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-primary-container text-on-primary-container uppercase tracking-wide">
                           {pt.kategoriDisabilitas}
@@ -891,6 +902,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                           <Icon name="open_in_new" className="text-[14px]" />
                         </a>
                       </td>
+                      <td className="p-3.5"><ScoreCell participant={pt} field="nilaiPretest" onSaved={onScore} /></td>
                       <td className="p-3.5">
                         <div className="flex flex-wrap gap-1.5">
                           {pt.kebutuhanFasilitas.map((f, i) => (
@@ -907,8 +919,9 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                           {pt.statusKehadiran}
                         </span>
                       </td>
+                      <td className="p-3.5"><ScoreCell participant={pt} field="nilaiPostest" onSaved={onScore} /></td>
                     </tr>
-                  ))}
+                  ); })}
                 </tbody>
               </table>
             </div>

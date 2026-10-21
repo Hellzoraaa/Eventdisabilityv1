@@ -149,6 +149,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
   const [regDisability, setRegDisability] = useState('');
   const [regFacilities, setRegFacilities] = useState<string[]>([]);
   const [regGender, setRegGender] = useState('');
+  const [regAddress, setRegAddress] = useState('');
   const [regNotes, setRegNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -182,7 +183,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
     setSubmitError('');
     setAddedLocally(0);
     setActiveTab('deskripsi');
-    setRegName(''); setRegWa(''); setRegEmail(''); setRegAge(''); setRegNotes('');
+    setRegName(''); setRegWa(''); setRegEmail(''); setRegAge(''); setRegNotes(''); setRegGender(''); setRegAddress('');
     setRegFacilities([]);
   }, [eventId]);
 
@@ -330,6 +331,8 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
           kategoriDisabilitas: regDisability,
           kebutuhanFasilitas: regFacilities,
           catatanKhusus: regNotes.trim(),
+          jenisKelamin: regGender,
+          alamat: regAddress.trim(),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -508,7 +511,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
        
               <div>
                 <label htmlFor="reg-gender" className={labelClass}>
-                  Gender 
+                  Jenis Kelamin
                 </label>
                 <select
                   id="reg-gender"
@@ -516,13 +519,18 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
                   onChange={(e) => setRegGender(e.target.value)}
                   className={inputClass}
                 >
-                  <option value="">Pilih Gender</option>
+                  <option value="">Pilih Jenis Kelamin</option>
                   <option value="Laki-laki">Laki-laki</option>
                   <option value="Perempuan">Perempuan</option>
                 </select>
               </div>
 
               
+
+              <div>
+                <label htmlFor="reg-address" className={labelClass}>Alamat *</label>
+                <textarea id="reg-address" required rows={2} value={regAddress} onChange={(e) => setRegAddress(e.target.value)} placeholder="Alamat lengkap tempat tinggal (jalan, RT/RW, kelurahan, kota)" className={inputClass} />
+              </div>
 
               <div>
                 <label htmlFor="reg-notes" className={labelClass}>Catatan Khusus / Riwayat Belajar (Opsional)</label>

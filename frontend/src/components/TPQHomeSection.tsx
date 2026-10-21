@@ -155,7 +155,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
   const [fetched, setFetched] = useState<TPQProgram | null>(null);
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'notfound' | 'error'>('idle');
   const [photoIdx, setPhotoIdx] = useState(0);
-  const [registration, setRegistration] = useState({ namaLengkap: '', noWa: '', email: '', usia: '', kategoriDisabilitas: '', gender: '', catatanKhusus: '' });
+  const [registration, setRegistration] = useState({ namaLengkap: '', noWa: '', email: '', usia: '', kategoriDisabilitas: '', gender: '', alamat: '', catatanKhusus: '' });
   const [registering, setRegistering] = useState(false);
   const [registrationError, setRegistrationError] = useState('');
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
@@ -222,7 +222,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
     const loading = loadState === 'loading' || (loadState === 'idle' && !program && !fetched);
     const message = loadState === 'error'
       ? 'Program gagal dimuat. Periksa koneksi lalu coba lagi.'
-      : 'Program TPQ tidak ditemukan, atau belum dipublikasikan.';
+      : 'Pendidikan tidak ditemukan, atau belum dipublikasikan.';
     return (
       <div className="min-h-screen w-full bg-slate-50">
         {topBar}
@@ -266,6 +266,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
           usia: registration.usia.trim() === '' ? undefined : Number(registration.usia),
           kategoriDisabilitas: registration.kategoriDisabilitas,
           gender: registration.gender,
+          alamat: registration.alamat.trim(),
           catatanKhusus: registration.catatanKhusus.trim(),
         }),
       });
@@ -305,7 +306,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
           {breadcrumb}
           <div className="rounded-2xl border border-green-200 bg-green-50 p-5 sm:p-8">
             <h1 className="text-xl font-bold text-green-900">Pendaftaran berhasil dikirim!</h1>
-            <p className="text-sm text-green-800 mt-1">Terima kasih sudah mendaftar di <strong>{program.namaProgram}</strong>. Silakan bergabung ke grup WhatsApp resmi program TPQ ini. Tautan juga dikirim ke email Anda.</p>
+            <p className="text-sm text-green-800 mt-1">Terima kasih sudah mendaftar di <strong>{program.namaProgram}</strong>. Silakan bergabung ke grup WhatsApp resmi pendidikan ini. Tautan juga dikirim ke email Anda.</p>
             <div className="mt-4 flex flex-wrap gap-3">
               <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-[13px] font-bold transition-colors"><Icon name="forum" className="text-[18px]" />Gabung Grup WhatsApp</a>
               <button type="button" onClick={goHome} className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-[13px] hover:bg-slate-50 cursor-pointer">Ke Beranda</button>
@@ -340,7 +341,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
 
             <form onSubmit={submitTPQRegistration} className="space-y-4">
               <div>
-                <label htmlFor="tpq-program" className={labelClass}>Nama Program TPQ</label>
+                <label htmlFor="tpq-program" className={labelClass}>Nama Lembaga Pendidikan</label>
                 <input id="tpq-program" type="text" readOnly value={program.namaProgram} className={`${inputClass} bg-slate-50 text-slate-700 cursor-not-allowed`} />
               </div>
 
@@ -377,12 +378,17 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
               </div>
 
               <div>
-                <label htmlFor="tpq-gender" className={labelClass}>Gender</label>
+                <label htmlFor="tpq-gender" className={labelClass}>Jenis Kelamin</label>
                 <select id="tpq-gender" value={registration.gender} onChange={setField('gender')} className={inputClass}>
-                  <option value="">Pilih Gender</option>
+                  <option value="">Pilih Jenis Kelamin</option>
                   <option value="Laki-laki">Laki-laki</option>
                   <option value="Perempuan">Perempuan</option>
                 </select>
+              </div>
+
+              <div>
+                <label htmlFor="tpq-address" className={labelClass}>Alamat *</label>
+                <textarea id="tpq-address" required rows={2} value={registration.alamat} onChange={setField('alamat')} placeholder="Alamat lengkap tempat tinggal" className={inputClass} />
               </div>
 
               <div>
@@ -663,7 +669,7 @@ export const TPQHomeSection: React.FC<TPQHomeSectionProps> = ({ programs, onOpen
           PENDIDIKAN TPQ AL-QUR’AN DISABILITAS
         </span>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-2">
-          Program TPQ 
+          Katalog Pendidikan
         </h2>
         <p className="text-[14px] text-slate-600 max-w-3xl">
           Program belajar Al-Qur’an yang dirancang untuk sahabat tunarungu dan tunanetra.
@@ -731,7 +737,7 @@ export const TPQHomeSection: React.FC<TPQHomeSectionProps> = ({ programs, onOpen
 
       {published.length > 0 && (
         <p className="mb-5 text-[13px] font-semibold text-slate-600">
-          Ditemukan <strong className="text-slate-900">{filtered.length}</strong> program TPQ
+          Ditemukan <strong className="text-slate-900">{filtered.length}</strong> lembaga pendidikan
         </p>
       )}
 
@@ -739,11 +745,11 @@ export const TPQHomeSection: React.FC<TPQHomeSectionProps> = ({ programs, onOpen
         <div className="bg-slate-50 border border-slate-200 rounded-3xl p-10 sm:p-12 text-center">
           <Icon name="menu_book" className="text-[48px] text-slate-400 mb-3" />
           <h3 className="text-[16px] font-bold text-slate-800">
-            {published.length === 0 ? 'Belum ada program TPQ yang dipublikasikan' : 'Tidak ada program yang sesuai'}
+            {published.length === 0 ? 'Belum ada pendidikan yang dipublikasikan' : 'Tidak ada program yang sesuai'}
           </h3>
           <p className="text-[13px] text-slate-500 mt-1 max-w-md mx-auto">
             {published.length === 0
-              ? 'Program TPQ akan tampil di sini setelah disetujui dan dipublikasikan oleh admin. Silakan kembali lagi nanti.'
+              ? 'Katalog pendidikan akan tampil di sini setelah disetujui dan dipublikasikan oleh admin. Silakan kembali lagi nanti.'
               : 'Coba ubah kata kunci atau pilihan filter.'}
           </p>
         </div>

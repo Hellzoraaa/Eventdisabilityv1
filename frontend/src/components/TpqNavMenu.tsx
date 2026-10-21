@@ -2,14 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon.tsx';
 
 /**
- * Menu navbar "Program TPQ" dengan dropdown bertingkat:
+ * Menu navbar "Pendidikan" dengan dropdown bertingkat:
  *
  *   Program TPQ
- *   ├─ Tunanetra  ─────────────► Pelatihan Al-Qur’an Braille
+ *   ├─ Tunanetra  ─────────────► Program Al-Qur’an Braille
  *   └─ Tunarungu  ▸ (submenu)
- *        ├─ Pelatihan Al-Qur’an Isyarat Metode Kitabah
- *        ├─ Pelatihan Al-Qur’an Isyarat Metode Tilawah
- *        └─ Pelatihan Al-Qur’an Komunikasi Total
+ *        ├─ Program Al-Qur’an Isyarat Metode Kitabah
+ *        ├─ Program Al-Qur’an Isyarat Metode Tilawah
+ *        └─ Program Al-Qur’an Komunikasi Total
  *
  * Satu komponen untuk desktop (dropdown melayang) dan mobile (accordion).
  * Pilihan dikirim lewat onSelect({label, jenis, metode}); ubah daftar di TPQ_MENU bila perlu.
@@ -37,15 +37,15 @@ export const TPQ_MENU: TpqMenuGroup[] = [
   {
     label: 'Tunanetra',
     icon: 'visibility',
-    select: { label: 'Pelatihan Al-Qur’an Braille', jenis: 'braille' },
+    select: { label: 'Program Al-Qur’an Braille', jenis: 'braille' },
   },
   {
     label: 'Tunarungu',
     icon: 'sign_language',
     children: [
-      { label: 'Pelatihan Al-Qur’an Isyarat Metode Kitabah', jenis: 'isyarat', metode: 'kitabah' },
-      { label: 'Pelatihan Al-Qur’an Isyarat Metode Tilawah', jenis: 'isyarat', metode: 'tilawah' },
-      { label: 'Pelatihan Al-Qur’an Komunikasi Total', jenis: 'isyarat', metode: 'komunikasi-total' },
+      { label: 'Program Al-Qur’an Isyarat Metode Kitabah', jenis: 'isyarat', metode: 'kitabah' },
+      { label: 'Program Al-Qur’an Isyarat Metode Tilawah', jenis: 'isyarat', metode: 'tilawah' },
+      { label: 'Program Al-Qur’an Komunikasi Total', jenis: 'isyarat', metode: 'komunikasi-total' },
     ],
   },
 ];
@@ -74,7 +74,7 @@ export const getKategoriOptions = (jenisPeserta: string): TpqSelection[] => {
 
 /** Samakan penulisan (spasi ganda, jenis tanda petik) agar data lama tetap cocok. */
 export const normalizeTpqLabel = (value: string) =>
-  String(value || '').replace(/['\u2018\u2019]/g, '\u2019').replace(/\s+/g, ' ').trim();
+  String(value || '').replace(/['\u2018\u2019]/g, '\u2019').replace(/\s+/g, ' ').trim().replace(/^Pelatihan /i, 'Program ');
 
 /** Cari kategori resmi dari teks (mis. data lama). Mengembalikan undefined bila tidak cocok. */
 export const findKategori = (value: string): TpqSelection | undefined => {
@@ -97,13 +97,13 @@ const Chevron = ({ open, className = '' }: { open: boolean; className?: string }
   <Icon name="keyboard_arrow_down" className={`text-[18px] leading-none transition-transform duration-200 ${className}`} aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none' }} />
 );
 
-/** Menu navbar "Program TPQ": hanya tiga pilihan jenis peserta, tanpa submenu. */
+/** Menu navbar "Pendidikan": hanya tiga pilihan jenis peserta, tanpa submenu. */
 export const TpqNavMenu: React.FC<Props> = ({
   variant = 'desktop',
   onSelect,
   onNavigate,
   className = '',
-  label = 'Program TPQ',
+  label = 'Pendidikan',
 }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
