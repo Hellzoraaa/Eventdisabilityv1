@@ -129,6 +129,8 @@ export interface TPQProgram {
   mitraId: string;
   mitraName: string;
   mitraOrg: string;
+  mitraPhone?: string;
+  noWaLembaga?: string;
   mitraLogo?: string;
   namaProgram: string;
   jenisTPQ: 'isyarat' | 'braille';
@@ -140,9 +142,7 @@ export interface TPQProgram {
   metodePembelajaran?: string;
   kebutuhanFasilitas: string[];
   frekuensiPertemuan?: string;
-  durasiProgram?: string;
   fotoDokumentasi?: string[];
-  linkGrupWa?: string;
   hariPertemuan: string[];
   jamMulai?: string | null;
   jamSelesai?: string | null;

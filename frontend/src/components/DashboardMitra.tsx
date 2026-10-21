@@ -1,11 +1,12 @@
-import { ScoreCell } from './ScoreCell.tsx';
-import { PERSYARATAN_TEMPLATE, PERSYARATAN_DEFAULT, parsePersyaratan } from '../utils/persyaratanTemplate.ts';
+import { PERSYARATAN_DEFAULT } from '../utils/persyaratanTemplate.ts';
 import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon.tsx';
-import { TPQRegistrations } from './TPQRegistrations.tsx';
+import { TPQManagement } from './TPQManagement.tsx';
+import { PersyaratanPicker } from './PersyaratanPicker.tsx';
 import { 
   TrainingProposal, 
   Participant, 
+  TPQProgram,
   User 
 } from '../types.ts';
 import { PartnerLogo } from './PartnerLogo.tsx';
@@ -26,6 +27,12 @@ interface DashboardMitraProps {
   currentUser: User;
   proposals: TrainingProposal[];
   participants: Participant[];
+  onNavigateToParticipants?: () => void;
+  onNavigateToManageTpq?: () => void;
+  onTpqProgramsUpdated?: (programs: TPQProgram[]) => void;
+  // Dipakai saat halaman lain (mis. Kelola Pendidikan) meminta dashboard langsung membuka tab tertentu.
+  requestedTab?: 'daftar' | 'ajukan' | 'ajukan_pendidikan';
+  onRequestedTabConsumed?: () => void;
   onProposalCreated: (newProposal: TrainingProposal) => void;
   onProposalUpdated: (updatedProposal: TrainingProposal) => void;
   onOpenChangePassword?: () => void;
@@ -37,13 +44,24 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
   currentUser,
   proposals,
   participants,
+  onNavigateToParticipants,
+  onNavigateToManageTpq,
+  onTpqProgramsUpdated,
+  requestedTab,
+  onRequestedTabConsumed,
   onProposalCreated,
   onProposalUpdated,
   onOpenChangePassword,
   onUserUpdated,
   showToast,
 }) => {
-  const [activeTab, setActiveTab] = useState<'daftar' | 'ajukan' | 'peserta' | 'peserta_tpq'>('daftar');
+  const [activeTab, setActiveTab] = useState<'daftar' | 'ajukan' | 'ajukan_pendidikan'>(requestedTab ?? 'daftar');
+  useEffect(() => {
+    if (requestedTab) {
+      setActiveTab(requestedTab);
+      onRequestedTabConsumed?.();
+    }
+  }, [requestedTab]);
   type MasterOption = { id: string; nama: string; kode?: string; isAktif?: boolean; urutan?: number };
   const [kategoriEventOptions, setKategoriEventOptions] = useState<MasterOption[]>([]);
   const [disabilitasOptions, setDisabilitasOptions] = useState<MasterOption[]>([]);
@@ -242,8 +260,6 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
   ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [scoreOverrides, setScoreOverrides] = useState<Record<string, Participant>>({});
-  const [selectedProposalForParticipants, setSelectedProposalForParticipants] = useState<string>('all');
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -423,13 +439,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
 
   // Filter participants for approved proposals
   const myApprovedEventIds = myProposals.filter(p => p.status === 'disetujui').map(p => p.id);
-  const myParticipants = participants.filter(pt => {
-    if (!myApprovedEventIds.includes(pt.eventId)) return false;
-    if (selectedProposalForParticipants !== 'all') {
-      return pt.eventId === selectedProposalForParticipants;
-    }
-    return true;
-  });
+  const myParticipants = participants.filter(pt => myApprovedEventIds.includes(pt.eventId));
 
   return (
     <>
@@ -493,16 +503,25 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
             </button>
           )}
 
-          <button
-            onClick={() => {
-              handleResetForm();
-              setActiveTab('ajukan');
-            }}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[13px] font-semibold shadow-sm transition-colors cursor-pointer"
-          >
-            <Icon name="add_circle" className="text-[18px]" />
-            Ajukan Permintaan Pelatihan
-          </button>
+          <div className="flex flex-col gap-2.5">
+            <button
+              onClick={() => {
+                handleResetForm();
+                setActiveTab('ajukan');
+              }}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[13px] font-semibold shadow-sm transition-colors cursor-pointer"
+            >
+              <Icon name="add_circle" className="text-[18px]" />
+              Daftarkan Event Baru
+            </button>
+            <button
+              onClick={() => setActiveTab('ajukan_pendidikan')}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[13px] font-semibold shadow-sm transition-colors cursor-pointer"
+            >
+              <Icon name="add_circle" className="text-[18px]" />
+              Daftarkan Pendidikan Baru
+            </button>
+          </div>
         </div>
       </div>
 
@@ -540,7 +559,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
           }`}
         >
-          Status Permintaan ({myProposals.length})
+         Semua Event ({myProposals.length})
         </button>
         <button
           onClick={() => {
@@ -556,24 +575,14 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
           {editingProposalId ? 'Perbaiki Permintaan' : 'Form Event Baru'}
         </button>
         <button
-          onClick={() => setActiveTab('peserta')}
+          onClick={() => setActiveTab('ajukan_pendidikan')}
           className={`px-4 py-2 text-[13px] font-semibold rounded-full transition-colors whitespace-nowrap cursor-pointer ${
-            activeTab === 'peserta'
+            activeTab === 'ajukan_pendidikan'
               ? 'bg-on-surface text-surface'
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
           }`}
         >
-          Data Peserta Event ({myParticipants.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('peserta_tpq')}
-          className={`px-4 py-2 text-[13px] font-semibold rounded-full transition-colors whitespace-nowrap cursor-pointer ${
-            activeTab === 'peserta_tpq'
-              ? 'bg-on-surface text-surface'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
-          }`}
-        >
-          Data Peserta TPQ
+          Form Pendidikan Baru
         </button>
       </div>
 
@@ -744,10 +753,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                           <div className="flex justify-between text-[12px] font-medium text-on-surface-variant mb-1.5">
                             <span>Jumlah Pendaftar: <strong className="text-on-surface">{prop.jumlahPendaftar} / {kuotaMax}</strong> ({percentage}%)</span>
                             <button
-                              onClick={() => {
-                                setSelectedProposalForParticipants(prop.id);
-                                setActiveTab('peserta');
-                              }}
+                              onClick={() => onNavigateToParticipants?.()}
                               className="text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
                             >
                               <span>Lihat Data Peserta</span>
@@ -822,7 +828,11 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                 variant="mitra"
               />
               <div className="request-field request-full"><label>Koordinat</label><input value={koordinat} onChange={e=>setKoordinat(e.target.value)} placeholder="-6.200000, 106.816666" /></div>
-              <div className="request-field request-full"><label>Persyaratan Peserta (Template)</label><div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">{PERSYARATAN_TEMPLATE.map(item => { const checked = parsePersyaratan(persyaratanEvent).includes(item); return <label key={item} className="!flex-row items-start gap-2 !font-medium"><input type="checkbox" className="!w-auto mt-0.5" checked={checked} onChange={() => { const cur = parsePersyaratan(persyaratanEvent); setPersyaratanEvent(PERSYARATAN_TEMPLATE.filter(t => t === item ? !checked : cur.includes(t)).join('\n')); }} /><span>{item}</span></label>; })}</div><small>Persyaratan memakai template baku. Centang yang berlaku untuk event ini; daftar tampil pada tab Persyaratan di Detail Event.</small></div>
+              <PersyaratanPicker
+                value={persyaratanEvent}
+                onChange={setPersyaratanEvent}
+                helpText="Persyaratan memakai template baku. Centang yang berlaku untuk event ini, atau tambahkan persyaratan sendiri; daftar tampil pada tab Persyaratan di Detail Event."
+              />
               <div className="request-field"><label>Kuota Peserta *</label><input required type="number" min={1} value={targetDanKuotaPeserta} onChange={e=>setTargetDanKuotaPeserta(e.target.value)} placeholder="Contoh: 50" /></div>
               <div className="request-field"><label>Link Grup WhatsApp (WAG)</label><input type="url" value={linkGrupWaEvent} onChange={e=>setLinkGrupWaEvent(e.target.value)} placeholder="https://chat.whatsapp.com/..." /><small>Dikirim ke peserta setelah berhasil mendaftar.</small></div>
               <div className="request-field request-full"><label>Benefit</label><textarea value={benefitEvent} onChange={e=>setBenefitEvent(e.target.value)} placeholder="Benefit bagi peserta" /></div>
@@ -833,113 +843,19 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
         </div>
       )}
 
-      {/* TAB 3: PELAKSANAAN PELATIHAN & DATA PESERTA */}
-      {activeTab === 'peserta' && (
-        <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-6 md:p-8 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-outline-variant/30 mb-6">
-            <div>
-              <h2 className="text-[20px] font-semibold text-on-surface">
-                Data Peserta Event
-              </h2>
-              <p className="text-[13px] text-on-surface-variant mt-1.5 font-medium">
-                Daftar peserta terdaftar dari link registrasi publik untuk pelaksanaan pelatihan.
-              </p>
-            </div>
-
-            {/* Filter by event */}
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] text-outline font-medium">Filter Event:</span>
-              <select
-                value={selectedProposalForParticipants}
-                onChange={(e) => setSelectedProposalForParticipants(e.target.value)}
-                className="px-4 py-2 border border-outline-variant/50 rounded-xl text-[13px] bg-surface-container-lowest focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-              >
-                <option value="all">Semua Event Saya ({myParticipants.length} Peserta)</option>
-                {myProposals.filter(p => p.status === 'disetujui').map(ev => (
-                  <option key={ev.id} value={ev.id}>{ev.namaKegiatan.slice(0, 35)}...</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {myParticipants.length === 0 ? (
-            <div className="p-12 text-center text-on-surface-variant text-[14px]">
-              Belum ada peserta terdaftar pada event yang dipilih. Pastikan event Anda telah disetujui dan link pendaftaran telah dibagikan ke calon peserta.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-[13px] border-collapse">
-                <thead>
-                  <tr className="bg-surface-container-low border-b border-outline-variant/30 text-on-surface-variant font-semibold">
-                    <th className="p-3.5 rounded-tl-xl">Nama Lengkap</th>
-                    <th className="p-3.5">Kategori Disabilitas</th>
-                    <th className="p-3.5">Kontak WhatsApp</th>
-                    <th className="p-3.5">Nilai Pretest</th>
-                    <th className="p-3.5">Kebutuhan Fasilitas</th>
-                    <th className="p-3.5">Event Pelatihan</th>
-                    <th className="p-3.5">Catatan</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5 rounded-tr-xl">Nilai Postest</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/20">
-                  {myParticipants.map((basePt) => { const pt = scoreOverrides[basePt.id] || basePt; const onScore = (np: Participant) => setScoreOverrides(prev => ({ ...prev, [np.id]: { ...basePt, ...np } })); return (
-                    <tr key={pt.id} className="hover:bg-surface-container-low/50 transition-colors">
-                      <td className="p-3.5 font-semibold text-on-surface">{pt.namaLengkap} ({pt.usia} th)<span className="block text-[11px] font-normal text-on-surface-variant" style={{ overflowWrap: 'anywhere' }}>{[pt.jenisKelamin, pt.alamat].filter(Boolean).join(' • ')}</span></td>
-                      <td className="p-3.5">
-                        <span className="px-2.5 py-1 rounded-md text-[10px] font-bold bg-primary-container text-on-primary-container uppercase tracking-wide">
-                          {pt.kategoriDisabilitas}
-                        </span>
-                      </td>
-                      <td className="p-3.5 font-mono font-medium">
-                        <a 
-                          href={`https://wa.me/62${pt.noWa.replace(/^0/, '')}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary hover:underline flex items-center gap-1.5"
-                        >
-                          {pt.noWa}
-                          <Icon name="open_in_new" className="text-[14px]" />
-                        </a>
-                      </td>
-                      <td className="p-3.5"><ScoreCell participant={pt} field="nilaiPretest" onSaved={onScore} /></td>
-                      <td className="p-3.5">
-                        <div className="flex flex-wrap gap-1.5">
-                          {pt.kebutuhanFasilitas.map((f, i) => (
-                            <span key={i} className="text-[11px] bg-surface-container px-2 py-0.5 rounded-md text-on-surface font-medium border border-outline-variant/20">
-                              {f}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-3.5 text-on-surface-variant max-w-xs truncate">{pt.eventTitle || pt.eventId}</td>
-                      <td className="p-3.5 text-outline italic max-w-xs truncate">{pt.catatanKhusus || '-'}</td>
-                      <td className="p-3.5">
-                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-surface-container text-on-surface border border-outline-variant/30 uppercase tracking-wide">
-                          {pt.statusKehadiran}
-                        </span>
-                      </td>
-                      <td className="p-3.5"><ScoreCell participant={pt} field="nilaiPostest" onSaved={onScore} /></td>
-                    </tr>
-                  ); })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 4: PESERTA PENDIDIKAN TPQ */}
-      {activeTab === 'peserta_tpq' && (
-        <div className="space-y-5">
-          <div>
-            <h2 className="text-[20px] font-semibold text-on-surface">Data Peserta Pendidikan</h2>
-            <p className="text-[13px] text-on-surface-variant mt-1.5 font-medium">
-              Peserta yang mendaftar melalui formulir pendaftaran pada program TPQ yang Anda selenggarakan.
-            </p>
-          </div>
-          <TPQRegistrations scope="mitra" />
-        </div>
+      {/* TAB: FORM PENGAJUAN PENDIDIKAN (dipindahkan dari Kelola Pendidikan) */}
+      {activeTab === 'ajukan_pendidikan' && (
+        <TPQManagement
+          currentUser={currentUser}
+          mode="form"
+          onProgramsUpdated={onTpqProgramsUpdated}
+          onCancel={() => setActiveTab('daftar')}
+          onSubmitted={(message) => {
+            showToast?.(message);
+            setActiveTab('daftar');
+            onNavigateToManageTpq?.();
+          }}
+        />
       )}
 
       {/* MITRA LOGO UPLOAD & MANAGEMENT MODAL */}

@@ -189,8 +189,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          {/* Bank Soal */}
-          {currentUser && (currentUser.role === 'superadmin' || currentUser.role === 'mitra') && (
+          {/* Bank Soal (terpusat, hanya Super Admin) */}
+          {currentUser && currentUser.role === 'superadmin' && (
             <button
               onClick={() => handleItemClick(() => onNavigate('bank_soal'))}
               className={navItemClass(isItemActive('bank_soal'))}
@@ -207,8 +207,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>Kosakata Isyarat Keislaman</span>
           </button>
 
-          {/* Data Peserta */}
-          {currentUser?.role === 'superadmin' && (
+          {/* Data Peserta (Super Admin: semua peserta; Mitra: hanya peserta event/program miliknya) */}
+          {currentUser && (currentUser.role === 'superadmin' || currentUser.role === 'mitra') && (
             <button
               onClick={() => handleItemClick(() => onNavigate('participants'))}
               className={navItemClass(isItemActive('participants'))}

@@ -229,6 +229,9 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     setTimeout(() => document.getElementById('program-tpq')?.scrollIntoView({ behavior: 'smooth' }), 50);
   };
 
+  // Menu Pendidikan > Test > Pretest / Postest membuka halaman test peserta (#test/pretest | #test/postest)
+  const openTest = (tipe: 'pretest' | 'postest') => { window.location.hash = `#test/${tipe}`; };
+
   // Mitra Feature States
   const [selectedMitraDetail, setSelectedMitraDetail] = useState<QuranCommunity | null>(null);
   // Master kategori disabilitas dari Dashboard Admin
@@ -677,6 +680,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 variant="desktop"
                 label={currentLang === 'id' ? 'Pendidikan' : 'Education'}
                 onSelect={handleTpqSelect}
+                onSelectTest={openTest}
               />
               <a href="#peta-lokasi" className="hover:opacity-80 transition-opacity">
                 {currentLang === 'id' ? 'Peta Lokasi' : 'Location Map'}
@@ -850,6 +854,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 variant="mobile"
                 label="Pendidikan"
                 onSelect={handleTpqSelect}
+                onSelectTest={openTest}
                 onNavigate={() => setIsMobileNavOpen(false)}
               />
               <a

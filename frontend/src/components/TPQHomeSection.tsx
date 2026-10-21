@@ -100,9 +100,19 @@ const getTPQSelectionMeta = (program: TPQProgram) => {
 };
 
 
-// Tautan WhatsApp hanya diterima bila berasal dari chat.whatsapp.com (tidak ada skema berbahaya).
-const safeWaLink = (url?: string) =>
-  url && /^https:\/\/chat\.whatsapp\.com\//.test(url.trim()) ? url.trim() : '';
+// Tombol WhatsApp ke penyelenggara: nomor dinormalisasi ke format internasional (62...), pesan diisi otomatis.
+const waDigits = (phone?: string) => {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (d.startsWith('0')) d = '62' + d.slice(1);
+  else if (d.startsWith('8')) d = '62' + d;
+  return d.length >= 9 && d.length <= 15 ? d : '';
+};
+const buildWaConfirmUrl = (phone: string | undefined, lembaga: string, peserta: string) => {
+  const number = waDigits(phone);
+  if (!number) return '';
+  const text = `Halo ${lembaga}, ${peserta} mau mengkonfirmasi bahwasannya saya sudah mendaftar di pendidikan ini, bagaimana saya bisa bergabung?`;
+  return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+};
 
 // ---------------------------------------------------------------------------
 // Routing berbasis hash: #tpq/<id>  (detail program TPQ sebagai halaman penuh)
@@ -159,7 +169,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
   const [registering, setRegistering] = useState(false);
   const [registrationError, setRegistrationError] = useState('');
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
-  const [registeredWaLink, setRegisteredWaLink] = useState('');
+  const [registeredName, setRegisteredName] = useState('');
 
   // Selalu mulai dari atas saat halaman dibuka / pindah program
   useEffect(() => { window.scrollTo(0, 0); setPhotoIdx(0); }, [programId, step]);
@@ -250,7 +260,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
 
   const photos = (program.fotoDokumentasi || []).filter(Boolean);
   const phase = getPhase(program);
-  const wa = safeWaLink(registeredWaLink);
+  const wa = buildWaConfirmUrl(program.noWaLembaga || program.mitraPhone, program.namaProgram, registeredName);
   const submitTPQRegistration = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (registering) return;
@@ -272,9 +282,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Pendaftaran TPQ gagal dikirim.');
-      const safeLink = safeWaLink(data.waLink);
-      if (!safeLink) throw new Error('Pendaftaran tersimpan, tetapi link WhatsApp belum valid. Hubungi penyelenggara.');
-      setRegisteredWaLink(safeLink); setRegistrationSuccess(true);
+      setRegisteredName(registration.namaLengkap.trim()); setRegistrationSuccess(true);
       window.scrollTo(0, 0);
     } catch (error) { setRegistrationError(error instanceof Error ? error.message : 'Pendaftaran TPQ gagal dikirim.'); }
     finally { setRegistering(false); }
@@ -298,7 +306,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
   );
 
   /* ---------- Layar sukses ---------- */
-  if (registrationSuccess && wa) {
+  if (registrationSuccess) {
     return (
       <div className="min-h-screen w-full bg-slate-50">
         {topBar}
@@ -306,9 +314,13 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
           {breadcrumb}
           <div className="rounded-2xl border border-green-200 bg-green-50 p-5 sm:p-8">
             <h1 className="text-xl font-bold text-green-900">Pendaftaran berhasil dikirim!</h1>
-            <p className="text-sm text-green-800 mt-1">Terima kasih sudah mendaftar di <strong>{program.namaProgram}</strong>. Silakan bergabung ke grup WhatsApp resmi pendidikan ini. Tautan juga dikirim ke email Anda.</p>
+            <p className="text-sm text-green-800 mt-1">Terima kasih sudah mendaftar di <strong>{program.namaProgram}</strong>. Silakan hubungi penyelenggara melalui WhatsApp untuk konfirmasi dan informasi cara bergabung.</p>
             <div className="mt-4 flex flex-wrap gap-3">
-              <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-[13px] font-bold transition-colors"><Icon name="forum" className="text-[18px]" />Gabung Grup WhatsApp</a>
+{wa ? (
+                <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-[13px] font-bold transition-colors"><Icon name="forum" className="text-[18px]" />Hubungi Penyelenggara via WhatsApp</a>
+              ) : (
+                <p className="text-[13px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">Nomor WhatsApp penyelenggara belum tersedia. Penyelenggara akan menghubungi Anda melalui nomor yang didaftarkan.</p>
+              )}
               <button type="button" onClick={goHome} className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-[13px] hover:bg-slate-50 cursor-pointer">Ke Beranda</button>
             </div>
           </div>
@@ -360,7 +372,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
                   <input id="tpq-email" type="email" required autoComplete="email" value={registration.email} onChange={setField('email')} placeholder="nama@email.com" className={inputClass} />
                 </div>
               </div>
-              <p className="text-[11.5px] text-slate-500 -mt-2">Tautan grup WhatsApp event juga dikirim ke email ini, jadi pastikan alamatnya benar.</p>
+              <p className="text-[11.5px] text-slate-500 -mt-2">Pastikan email dan nomor WhatsApp benar agar penyelenggara dapat menghubungi Anda.</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -417,7 +429,6 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
   }
 
   const rows: Array<[string, string, string]> = [
-    ['schedule', 'Durasi Program', program.durasiProgram || '-'],
     ['calendar_month', 'Tanggal Pelaksanaan', `${formatDate(program.tanggalMulai)} – ${formatDate(program.tanggalSelesai)}`],
     [
       'event_repeat',
@@ -525,7 +536,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">Pendaftaran Pendidikan TPQ</h2>
-                  <p className="text-sm text-slate-600 mt-1">{registrationClosed ? 'Program ini sudah selesai.' : 'Daftarkan diri Anda melalui formulir pendaftaran. Link grup WhatsApp akan muncul setelah pendaftaran berhasil.'}</p>
+                  <p className="text-sm text-slate-600 mt-1">{registrationClosed ? 'Program ini sudah selesai.' : 'Daftarkan diri Anda melalui formulir pendaftaran. Setelah pendaftaran berhasil, Anda dapat menghubungi penyelenggara melalui tombol WhatsApp.'}</p>
                 </div>
                 <button
                   type="button"
@@ -794,7 +805,6 @@ export const TPQHomeSection: React.FC<TPQHomeSectionProps> = ({ programs, onOpen
                       ) : null;
                     })()}
                     <ul className="mt-3 space-y-1.5 text-[12px] text-slate-600">
-                      <li className="flex items-center gap-2"><Icon name="schedule" className="text-[16px] text-emerald-700" />{p.durasiProgram || '-'}</li>
                       <li className="flex items-center gap-2"><Icon name="calendar_month" className="text-[16px] text-emerald-700" />{formatDate(p.tanggalMulai)} – {formatDate(p.tanggalSelesai)}</li>
                       <li className="flex items-center gap-2"><Icon name="location_on" className="text-[16px] text-emerald-700" />{p.kota}, {p.provinsi}</li>
                     </ul>

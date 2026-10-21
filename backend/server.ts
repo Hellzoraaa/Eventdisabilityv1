@@ -160,6 +160,9 @@ function mapDbTPQ(row: any): TPQProgram {
     mitraId: String(row.mitra_id_string ?? row.mitra_id ?? ''),
     mitraName: row.mitraName ?? row.name ?? '',
     mitraOrg: row.mitraOrg ?? row.organization_name ?? '',
+    // Nomor WhatsApp penyelenggara (users.phone); dipakai tombol "Hubungi Penyelenggara" setelah peserta mendaftar.
+    mitraPhone: row.mitraPhone ?? '',
+    noWaLembaga: row.nomor_wa_lembaga ?? '',
     // Logo lembaga mitra penyelenggara (users.organization_logo), dipakai di kartu & halaman TPQ.
     mitraLogo: row.userOrgLogo ?? row.organization_logo ?? undefined,
     namaProgram: row.nama_program ?? '',
@@ -172,9 +175,7 @@ function mapDbTPQ(row: any): TPQProgram {
     metodePembelajaran: row.metode_pembelajaran ?? '',
     kebutuhanFasilitas: jsonParse<string[]>(row.kebutuhan_fasilitas, []),
     frekuensiPertemuan: row.frekuensi_pertemuan ?? '',
-    durasiProgram: row.durasi_program ?? '',
     fotoDokumentasi: jsonParse<string[]>(row.foto_dokumentasi, []),
-    linkGrupWa: row.link_grup_wa ?? '',
     hariPertemuan: jsonParse<string[]>(row.hari_pertemuan, []),
     jamMulai: row.jam_mulai ? String(row.jam_mulai).slice(0, 5) : null,
     jamSelesai: row.jam_selesai ? String(row.jam_selesai).slice(0, 5) : null,
@@ -1506,24 +1507,32 @@ function isIsoDate(value: unknown): value is string {
   return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
 }
 function validateTPQDates(body: any): string | null {
-  // Tanggal mulai/selesai tidak lagi diminta di form pendidikan; validasi hanya berlaku bila keduanya diisi.
+  // Tanggal mulai & berakhir diisi di form pendidikan. Data lama boleh kosong, jadi validasi hanya berlaku bila diisi.
   if (!body.tanggalMulai && !body.tanggalSelesai) return null;
   if (!isIsoDate(body.tanggalMulai) || !isIsoDate(body.tanggalSelesai)) return 'Tanggal mulai dan tanggal selesai harus valid.';
   if (body.tanggalSelesai < body.tanggalMulai) return 'Tanggal selesai tidak boleh sebelum tanggal mulai.';
   if (body.batasPendaftaran && (!isIsoDate(body.batasPendaftaran) || body.batasPendaftaran > body.tanggalMulai)) return 'Batas pendaftaran harus berupa tanggal valid dan tidak boleh melewati tanggal mulai.';
-  const match = String(body.durasiProgram || '').trim().match(/^(?:program\s*)?(\d+)\s*(hari|minggu|bulan|tahun)$/i);
-  if (match) {
-    const amount = Number(match[1]);
-    const start = new Date(`${body.tanggalMulai}T00:00:00Z`);
-    const max = new Date(start);
-    const unit = match[2].toLowerCase();
-    if (unit === 'hari') max.setUTCDate(max.getUTCDate() + amount - 1);
-    else if (unit === 'minggu') max.setUTCDate(max.getUTCDate() + amount * 7 - 1);
-    else if (unit === 'bulan') { max.setUTCMonth(max.getUTCMonth() + amount); max.setUTCDate(max.getUTCDate() - 1); }
-    else { max.setUTCFullYear(max.getUTCFullYear() + amount); max.setUTCDate(max.getUTCDate() - 1); }
-    if (new Date(`${body.tanggalSelesai}T00:00:00Z`) > max) return `Tanggal selesai melewati durasi ${body.durasiProgram}.`;
-  }
   return null;
+}
+
+// Nomor WhatsApp lembaga pendidikan (tujuan tombol "Hubungi Penyelenggara"). Kolom ditambahkan otomatis bila database lama belum punya.
+let tpqContactColumnReady = false;
+async function ensureTpqContactColumn(pool: any) {
+  if (tpqContactColumnReady) return;
+  const [cols] = await pool.query(
+    "SELECT COUNT(*) AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tpq_programs' AND COLUMN_NAME = 'nomor_wa_lembaga'"
+  );
+  if (Number((cols as any[])[0]?.n) === 0) {
+    await pool.query("ALTER TABLE tpq_programs ADD COLUMN nomor_wa_lembaga varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER foto_dokumentasi");
+  }
+  tpqContactColumnReady = true;
+}
+// Normalisasi nomor ke format internasional tanpa tanda + (62812...). Mengembalikan '' bila tidak valid.
+function normalizeWaNumber(value: unknown): string {
+  let d = String(value ?? '').replace(/\D/g, '');
+  if (d.startsWith('0')) d = '62' + d.slice(1);
+  else if (d.startsWith('8')) d = '62' + d;
+  return d.length >= 9 && d.length <= 15 ? d : '';
 }
 
 // ======================== PENDIDIKAN TPQ ========================
@@ -1546,7 +1555,7 @@ app.get('/api/tpq', async (req, res) => {
       where.push('tp.mitra_id_string = ?');
       params.push(sessionUser.id);
     }
-    let sql = `SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo
+    let sql = `SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo, u.phone AS mitraPhone
                FROM tpq_programs tp
                LEFT JOIN users u ON u.id = tp.mitra_id OR u.user_id_string = tp.mitra_id_string`;
     if (where.length) sql += ` WHERE ${where.join(' AND ')}`;
@@ -1554,7 +1563,7 @@ app.get('/api/tpq', async (req, res) => {
     // memicu ER_OUT_OF_SORTMEMORY. Urutan dibuat di Node (id auto-increment = urutan input).
     const [rawRows] = await pool.query(sql, params);
     const rows = Array.isArray(rawRows) ? [...rawRows].sort((a: any, b: any) => Number(b.id) - Number(a.id)) : rawRows;
-    return res.json({ programs: Array.isArray(rows) ? rows.map((row: any) => { const mapped = mapDbTPQ(row); if (!sessionUser || req.query.publicCatalog === 'true' || mapped.status !== 'disetujui') mapped.linkGrupWa = ''; return mapped; }) : [] });
+    return res.json({ programs: Array.isArray(rows) ? rows.map((row: any) => mapDbTPQ(row)) : [] });
   } catch (error) {
     console.error('[TPQ GET] error:', error);
     return res.status(500).json({ error: 'Gagal mengambil program TPQ dari MySQL.' });
@@ -1571,12 +1580,15 @@ app.post('/api/tpq', async (req, res) => {
     if (sessionUser.role === 'mitra') body.mitraId = sessionUser.id;
     const required = ['namaProgram', 'jenisTPQ', 'deskripsiProgram', 'provinsi', 'kota'];
     for (const key of required) if (!body[key]) return res.status(400).json({ error: `${key} wajib diisi.` });
+    if (!body.tanggalMulai || !body.tanggalSelesai) return res.status(400).json({ error: 'Tanggal mulai dan tanggal berakhir wajib diisi.' });
+    const waLembaga = normalizeWaNumber(body.noWaLembaga);
+    if (!waLembaga) return res.status(400).json({ error: 'Nomor WhatsApp lembaga wajib diisi dengan nomor yang valid, contoh 081234567890.' });
     const dateError = validateTPQDates(body);
     if (dateError) return res.status(400).json({ error: dateError });
     if (!['isyarat', 'braille'].includes(body.jenisTPQ)) return res.status(400).json({ error: 'Jenis TPQ harus Isyarat atau Braille.' });
-    if (body.linkGrupWa && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+/.test(String(body.linkGrupWa).trim())) return res.status(400).json({ error: 'Link WhatsApp harus berupa https://chat.whatsapp.com/...' });
     if (!Array.isArray(body.hariPertemuan) || body.hariPertemuan.length === 0) return res.status(400).json({ error: 'Hari pertemuan wajib dipilih.' });
     const pool = await getPool();
+    await ensureTpqContactColumn(pool);
     const mitraIdString = body.mitraId ? String(body.mitraId) : null;
     let mitraNumericId: number | null = null;
     if (mitraIdString) {
@@ -1586,11 +1598,11 @@ app.post('/api/tpq', async (req, res) => {
     }
     const id = `tpq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     await pool.query(`INSERT INTO tpq_programs
-      (program_id_string, mitra_id, mitra_id_string, nama_program, jenis_tpq, deskripsi_program, tujuan_pembelajaran, target_peserta, kuota_peserta, materi_pembelajaran, metode_pembelajaran, kebutuhan_fasilitas, frekuensi_pertemuan, hari_pertemuan, jam_mulai, jam_selesai, tanggal_mulai, tanggal_selesai, batas_pendaftaran, benefit_program, provinsi, kota, lokasi_dan_alamat, latitude, longitude, durasi_program, foto_dokumentasi, link_grup_wa, status, is_aktif, jumlah_pendaftar)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'menunggu_persetujuan', 0, 0)`, [
-      id, mitraNumericId, mitraIdString, body.namaProgram, body.jenisTPQ, body.deskripsiProgram, body.tujuanPembelajaran || null, body.targetPeserta || null, Number(body.kuotaPeserta || 0), body.materiPembelajaran || null, body.metodePembelajaran || null, JSON.stringify(Array.isArray(body.kebutuhanFasilitas) ? body.kebutuhanFasilitas : []), body.frekuensiPertemuan || null, JSON.stringify(body.hariPertemuan), body.jamMulai || null, body.jamSelesai || null, body.tanggalMulai, body.tanggalSelesai, body.batasPendaftaran || null, body.benefitProgram || null, body.provinsi, body.kota, body.lokasiDanAlamat, Number(body.latitude), Number(body.longitude), String(body.durasiProgram || ''), JSON.stringify(Array.isArray(body.fotoDokumentasi) ? body.fotoDokumentasi : []), null
+      (program_id_string, mitra_id, mitra_id_string, nama_program, jenis_tpq, deskripsi_program, tujuan_pembelajaran, target_peserta, kuota_peserta, materi_pembelajaran, metode_pembelajaran, kebutuhan_fasilitas, frekuensi_pertemuan, hari_pertemuan, jam_mulai, jam_selesai, tanggal_mulai, tanggal_selesai, batas_pendaftaran, benefit_program, provinsi, kota, lokasi_dan_alamat, latitude, longitude, foto_dokumentasi, nomor_wa_lembaga, status, is_aktif, jumlah_pendaftar)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'menunggu_persetujuan', 0, 0)`, [
+      id, mitraNumericId, mitraIdString, body.namaProgram, body.jenisTPQ, body.deskripsiProgram, body.tujuanPembelajaran || null, body.targetPeserta || null, Number(body.kuotaPeserta || 0), body.materiPembelajaran || null, body.metodePembelajaran || null, JSON.stringify(Array.isArray(body.kebutuhanFasilitas) ? body.kebutuhanFasilitas : []), body.frekuensiPertemuan || null, JSON.stringify(body.hariPertemuan), body.jamMulai || null, body.jamSelesai || null, body.tanggalMulai, body.tanggalSelesai, body.batasPendaftaran || null, body.benefitProgram || null, body.provinsi, body.kota, body.lokasiDanAlamat, Number(body.latitude), Number(body.longitude), JSON.stringify(Array.isArray(body.fotoDokumentasi) ? body.fotoDokumentasi : []), waLembaga
     ]);
-    const [rows] = await pool.query('SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo FROM tpq_programs tp LEFT JOIN users u ON u.id = tp.mitra_id WHERE tp.program_id_string=? LIMIT 1', [id]);
+    const [rows] = await pool.query('SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo, u.phone AS mitraPhone FROM tpq_programs tp LEFT JOIN users u ON u.id = tp.mitra_id WHERE tp.program_id_string=? LIMIT 1', [id]);
     return res.status(201).json({ program: mapDbTPQ((rows as any[])[0]) });
   } catch (error) {
     console.error('[TPQ POST] error:', error);
@@ -1612,56 +1624,18 @@ app.put('/api/tpq/:id', async (req, res) => {
     if (!isSuperadmin && String(existingProgram.mitra_id_string || '') !== String(sessionUser.id)) return res.status(403).json({ error: 'Anda hanya dapat mengubah program TPQ milik sendiri.' });
     const dateError = validateTPQDates(body);
     if (dateError) return res.status(400).json({ error: dateError });
+    const waLembaga = normalizeWaNumber(body.noWaLembaga);
+    if (!waLembaga) return res.status(400).json({ error: 'Nomor WhatsApp lembaga wajib diisi dengan nomor yang valid, contoh 081234567890.' });
+    await ensureTpqContactColumn(pool);
     const adminEdit = isSuperadmin;
-    if (body.linkGrupWa && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+/.test(String(body.linkGrupWa).trim())) return res.status(400).json({ error: 'Link WhatsApp harus berupa https://chat.whatsapp.com/...' });
-    await pool.query(`UPDATE tpq_programs SET nama_program=?, jenis_tpq=?, deskripsi_program=?, tujuan_pembelajaran=?, target_peserta=?, kuota_peserta=?, materi_pembelajaran=?, metode_pembelajaran=?, kebutuhan_fasilitas=?, frekuensi_pertemuan=?, hari_pertemuan=?, jam_mulai=?, jam_selesai=?, tanggal_mulai=?, tanggal_selesai=?, batas_pendaftaran=?, benefit_program=?, provinsi=?, kota=?, lokasi_dan_alamat=?, latitude=?, longitude=?, durasi_program=?, foto_dokumentasi=?, link_grup_wa=?, status=IF(?, status, 'menunggu_persetujuan'), is_aktif=IF(?, is_aktif, 0), izinkan_publikasi=IF(?, izinkan_publikasi, 0), updated_at=CURRENT_TIMESTAMP WHERE program_id_string=?`, [
-      body.namaProgram, body.jenisTPQ, body.deskripsiProgram, body.tujuanPembelajaran || null, body.targetPeserta || null, Number(body.kuotaPeserta || 0), body.materiPembelajaran || null, body.metodePembelajaran || null, JSON.stringify(Array.isArray(body.kebutuhanFasilitas) ? body.kebutuhanFasilitas : []), body.frekuensiPertemuan || null, JSON.stringify(Array.isArray(body.hariPertemuan) ? body.hariPertemuan : []), body.jamMulai || null, body.jamSelesai || null, body.tanggalMulai || null, body.tanggalSelesai || null, body.batasPendaftaran || null, body.benefitProgram || null, body.provinsi, body.kota, body.lokasiDanAlamat, Number(body.latitude), Number(body.longitude), String(body.durasiProgram || ''), JSON.stringify(Array.isArray(body.fotoDokumentasi) ? body.fotoDokumentasi : []), (isSuperadmin && existingProgram.status === 'disetujui' ? (existingProgram.link_grup_wa || null) : null), adminEdit, adminEdit, adminEdit, id
+    await pool.query(`UPDATE tpq_programs SET nama_program=?, jenis_tpq=?, deskripsi_program=?, tujuan_pembelajaran=?, target_peserta=?, kuota_peserta=?, materi_pembelajaran=?, metode_pembelajaran=?, kebutuhan_fasilitas=?, frekuensi_pertemuan=?, hari_pertemuan=?, jam_mulai=?, jam_selesai=?, tanggal_mulai=?, tanggal_selesai=?, batas_pendaftaran=?, benefit_program=?, provinsi=?, kota=?, lokasi_dan_alamat=?, latitude=?, longitude=?, foto_dokumentasi=?, nomor_wa_lembaga=?, status=IF(?, status, 'menunggu_persetujuan'), is_aktif=IF(?, is_aktif, 0), izinkan_publikasi=IF(?, izinkan_publikasi, 0), updated_at=CURRENT_TIMESTAMP WHERE program_id_string=?`, [
+      body.namaProgram, body.jenisTPQ, body.deskripsiProgram, body.tujuanPembelajaran || null, body.targetPeserta || null, Number(body.kuotaPeserta || 0), body.materiPembelajaran || null, body.metodePembelajaran || null, JSON.stringify(Array.isArray(body.kebutuhanFasilitas) ? body.kebutuhanFasilitas : []), body.frekuensiPertemuan || null, JSON.stringify(Array.isArray(body.hariPertemuan) ? body.hariPertemuan : []), body.jamMulai || null, body.jamSelesai || null, body.tanggalMulai || null, body.tanggalSelesai || null, body.batasPendaftaran || null, body.benefitProgram || null, body.provinsi, body.kota, body.lokasiDanAlamat, Number(body.latitude), Number(body.longitude), JSON.stringify(Array.isArray(body.fotoDokumentasi) ? body.fotoDokumentasi : []), waLembaga, adminEdit, adminEdit, adminEdit, id
     ]);
-    const [rows] = await pool.query('SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo FROM tpq_programs tp LEFT JOIN users u ON u.id = tp.mitra_id WHERE tp.program_id_string=? LIMIT 1', [id]);
+    const [rows] = await pool.query('SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo, u.phone AS mitraPhone FROM tpq_programs tp LEFT JOIN users u ON u.id = tp.mitra_id WHERE tp.program_id_string=? LIMIT 1', [id]);
     return res.json({ program: mapDbTPQ((rows as any[])[0]) });
   } catch (error) {
     console.error('[TPQ PUT] error:', error);
     return res.status(500).json({ error: 'Gagal memperbarui program TPQ di MySQL.', details: error instanceof Error ? error.message : String(error) });
-  }
-});
-
-// Link grup WhatsApp Pendidikan TPQ, terpisah agar tidak tercampur dengan data publik.
-app.get('/api/tpq/:id/wa-link', async (req, res) => {
-  try {
-    const sessionUser = readSessionUserId(req) ? await getUserById(readSessionUserId(req)!) : null;
-    if (!sessionUser) return res.status(401).json({ error: 'Silakan login terlebih dahulu.' });
-    const pool = await getPool();
-    const [rows] = await pool.query('SELECT link_grup_wa, status, mitra_id_string FROM tpq_programs WHERE program_id_string=? LIMIT 1', [String(req.params.id)]);
-    if (!Array.isArray(rows) || !rows.length) return res.status(404).json({ error: 'Program TPQ tidak ditemukan.' });
-    const row = (rows as any[])[0];
-    if (sessionUser.role !== 'superadmin' && String(row.mitra_id_string || '') !== String(sessionUser.id)) return res.status(403).json({ error: 'Anda hanya dapat mengelola link WhatsApp program milik sendiri.' });
-    if (row.status !== 'disetujui') return res.status(409).json({ error: 'Link WhatsApp baru tersedia setelah program disetujui Superadmin.' });
-    return res.json({ waLink: row.link_grup_wa || '' });
-  } catch (error) {
-    console.error('[TPQ WA GET] error:', error);
-    return res.status(500).json({ error: 'Gagal mengambil link WhatsApp TPQ.' });
-  }
-});
-
-app.put('/api/tpq/:id/wa-link', async (req, res) => {
-  try {
-    const id = String(req.params.id);
-    const waLink = String(req.body?.waLink ?? '').trim();
-    const sessionUser = readSessionUserId(req) ? await getUserById(readSessionUserId(req)!) : null;
-    if (!sessionUser) return res.status(401).json({ error: 'Silakan login terlebih dahulu.' });
-    if (waLink && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+/.test(waLink)) return res.status(400).json({ error: 'Gunakan link grup WhatsApp https://chat.whatsapp.com/...' });
-    const pool = await getPool();
-    const [found] = await pool.query('SELECT id, status, mitra_id_string, izinkan_publikasi FROM tpq_programs WHERE program_id_string=? LIMIT 1', [id]);
-    if (!Array.isArray(found) || !found.length) return res.status(404).json({ error: 'Program TPQ tidak ditemukan.' });
-    const row = (found as any[])[0];
-    if (sessionUser.role !== 'superadmin' && String(row.mitra_id_string || '') !== String(sessionUser.id)) return res.status(403).json({ error: 'Anda hanya dapat mengatur link WhatsApp program milik sendiri.' });
-    if (row.status !== 'disetujui') return res.status(409).json({ error: 'Link WhatsApp baru dapat diatur setelah program disetujui Superadmin.' });
-    if (Boolean(Number(row.izinkan_publikasi)) && sessionUser.role !== 'superadmin') return res.status(409).json({ error: 'Link WhatsApp Mitra hanya dapat diubah sebelum program dipublikasikan.' });
-    await pool.query('UPDATE tpq_programs SET link_grup_wa=? WHERE program_id_string=?', [waLink || null, id]);
-    return res.json({ success: true });
-  } catch (error) {
-    console.error('[TPQ WA PUT] error:', error);
-    return res.status(500).json({ error: 'Gagal menyimpan link WhatsApp TPQ.' });
   }
 });
 
@@ -1674,7 +1648,7 @@ app.post('/api/tpq/:id/approve', async (req, res) => {
     const [existing] = await pool.query('SELECT program_id_string, nama_program, status FROM tpq_programs WHERE program_id_string=? LIMIT 1', [id]);
     if (!Array.isArray(existing) || !existing.length) return res.status(404).json({ error: 'Pengajuan Pendidikan TPQ tidak ditemukan.' });
     await pool.query("UPDATE tpq_programs SET status='disetujui', is_aktif=0, izinkan_publikasi=0, alasan_penolakan=NULL, updated_at=CURRENT_TIMESTAMP WHERE program_id_string=?", [id]);
-    const [rows] = await pool.query('SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo FROM tpq_programs tp LEFT JOIN users u ON u.id = tp.mitra_id OR u.user_id_string = tp.mitra_id_string WHERE tp.program_id_string=? LIMIT 1', [id]);
+    const [rows] = await pool.query('SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo, u.phone AS mitraPhone FROM tpq_programs tp LEFT JOIN users u ON u.id = tp.mitra_id OR u.user_id_string = tp.mitra_id_string WHERE tp.program_id_string=? LIMIT 1', [id]);
     const program = mapDbTPQ((rows as any[])[0]);
     await addSystemLog('Super Administrator', 'superadmin', 'Persetujuan Pendidikan TPQ', 'tpq', `Program TPQ ${program.namaProgram} disetujui.`, 'success');
     return res.json({ success: true, program });
@@ -1691,10 +1665,9 @@ app.post('/api/tpq/:id/publish', async (req, res) => {
     const id = String(req.params.id);
     const allowed = Boolean(req.body?.izinkanPublikasi);
     const pool = await getPool();
-    const [found] = await pool.query('SELECT nama_program, status, link_grup_wa FROM tpq_programs WHERE program_id_string=? LIMIT 1', [id]);
+    const [found] = await pool.query('SELECT nama_program, status FROM tpq_programs WHERE program_id_string=? LIMIT 1', [id]);
     if (!Array.isArray(found) || !found.length) return res.status(404).json({ error: 'Program TPQ tidak ditemukan.' });
     if (allowed && (found as any[])[0].status !== 'disetujui') return res.status(409).json({ error: 'Setujui program terlebih dahulu sebelum mengizinkan publikasi.' });
-    if (allowed && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+/.test(String((found as any[])[0].link_grup_wa || ''))) return res.status(409).json({ error: 'Isi link grup WhatsApp terlebih dahulu sebelum memublikasikan program TPQ.' });
     await pool.query('UPDATE tpq_programs SET izinkan_publikasi=?, is_aktif=?, updated_at=CURRENT_TIMESTAMP WHERE program_id_string=?', [allowed ? 1 : 0, allowed ? 1 : 0, id]);
     await addSystemLog('Super Administrator', 'superadmin', allowed ? 'Izinkan Publikasi Pendidikan TPQ' : 'Cabut Publikasi Pendidikan TPQ', 'tpq', `Publikasi program TPQ ${(found as any[])[0].nama_program}: ${allowed ? 'diizinkan' : 'dinonaktifkan'}.`, 'success');
     return res.json({ success: true, izinkanPublikasi: allowed, isAktif: allowed });
@@ -1715,7 +1688,7 @@ app.post('/api/tpq/:id/reject', async (req, res) => {
     const [existing] = await pool.query('SELECT program_id_string, nama_program FROM tpq_programs WHERE program_id_string=? LIMIT 1', [id]);
     if (!Array.isArray(existing) || !existing.length) return res.status(404).json({ error: 'Pengajuan Pendidikan TPQ tidak ditemukan.' });
     await pool.query("UPDATE tpq_programs SET status='ditolak', is_aktif=0, alasan_penolakan=?, updated_at=CURRENT_TIMESTAMP WHERE program_id_string=?", [reason, id]);
-    const [rows] = await pool.query('SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo FROM tpq_programs tp LEFT JOIN users u ON u.id = tp.mitra_id OR u.user_id_string = tp.mitra_id_string WHERE tp.program_id_string=? LIMIT 1', [id]);
+    const [rows] = await pool.query('SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo, u.phone AS mitraPhone FROM tpq_programs tp LEFT JOIN users u ON u.id = tp.mitra_id OR u.user_id_string = tp.mitra_id_string WHERE tp.program_id_string=? LIMIT 1', [id]);
     const program = mapDbTPQ((rows as any[])[0]);
     await addSystemLog('Super Administrator', 'superadmin', 'Penolakan Pendidikan TPQ', 'tpq', `Program TPQ ${program.namaProgram} ditolak. Alasan: ${reason}`, 'warning');
     return res.json({ success: true, program });
@@ -1787,7 +1760,7 @@ app.get('/api/tpq/registrations', async (req, res) => {
   }
 });
 
-// Pendaftaran peserta TPQ: link grup WhatsApp hanya dikembalikan setelah pendaftaran berhasil disimpan.
+// Pendaftaran peserta TPQ: peserta tidak masuk grup WhatsApp, tetapi menghubungi penyelenggara lewat tombol WhatsApp di frontend.
 app.post('/api/tpq/:id/register', async (req, res) => {
   try {
     const id = String(req.params.id);
@@ -1813,12 +1786,11 @@ app.post('/api/tpq/:id/register', async (req, res) => {
     if (gender && !['Laki-laki', 'Perempuan'].includes(gender)) return res.status(400).json({ error: 'Jenis kelamin tidak valid.' });
     const pool = await getPool();
     await ensureTpqGenderColumn(pool);
-    const [rows] = await pool.query('SELECT id, nama_program, status, izinkan_publikasi, link_grup_wa, jumlah_pendaftar, kuota_peserta, batas_pendaftaran FROM tpq_programs WHERE program_id_string=? LIMIT 1', [id]);
+    await ensureTpqContactColumn(pool);
+    const [rows] = await pool.query('SELECT tp.id, tp.nama_program, tp.status, tp.izinkan_publikasi, tp.jumlah_pendaftar, tp.kuota_peserta, tp.batas_pendaftaran, tp.nomor_wa_lembaga, u.phone AS mitraPhone FROM tpq_programs tp LEFT JOIN users u ON u.id = tp.mitra_id OR u.user_id_string = tp.mitra_id_string WHERE tp.program_id_string=? LIMIT 1', [id]);
     if (!Array.isArray(rows) || !rows.length) return res.status(404).json({ error: 'Program TPQ tidak ditemukan.' });
     const program = (rows as any[])[0];
     if (program.status !== 'disetujui' || !Boolean(Number(program.izinkan_publikasi))) return res.status(409).json({ error: 'Pendaftaran program ini belum dibuka.' });
-    const waLink = String(program.link_grup_wa || '').trim();
-    if (!/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+/.test(waLink)) return res.status(409).json({ error: 'Link grup WhatsApp belum tersedia. Silakan hubungi penyelenggara.' });
     if (program.batas_pendaftaran && String(program.batas_pendaftaran).slice(0, 10) < new Date().toISOString().slice(0, 10)) return res.status(409).json({ error: 'Batas pendaftaran program ini sudah lewat.' });
     const quota = Number(program.kuota_peserta || 0);
     if (quota > 0 && Number(program.jumlah_pendaftar || 0) >= quota) return res.status(409).json({ error: 'Kuota peserta program ini sudah penuh.' });
@@ -1826,12 +1798,7 @@ app.post('/api/tpq/:id/register', async (req, res) => {
     await pool.query(`INSERT INTO tpq_registrations (registration_id_string, program_id_string, nama_lengkap, no_wa, email, usia, kategori_disabilitas, gender, alamat, catatan_khusus)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [registrationId, id, nama, noWa, email, usiaFinal, disabilitas, gender || null, alamat || null, catatan || null]);
     await pool.query('UPDATE tpq_programs SET jumlah_pendaftar=jumlah_pendaftar+1 WHERE program_id_string=?', [id]);
-    // Email = cadangan tautan grup WhatsApp. Bila gagal, pendaftaran tetap sukses.
-    if (isRealEmail(email)) {
-      sendWaLinkEmail({ to: email, nama, eventName: String(program.nama_program), waLink })
-        .catch((mailErr: unknown) => console.error('[Mail] Gagal kirim link WA TPQ:', mailErr));
-    }
-    return res.status(201).json({ success: true, message: 'Pendaftaran TPQ berhasil dikirim.', waLink });
+    return res.status(201).json({ success: true, message: 'Pendaftaran TPQ berhasil dikirim.', noWaLembaga: String(program.nomor_wa_lembaga || program.mitraPhone || '') });
   } catch (error) {
     console.error('[TPQ REGISTER] error:', error);
     return res.status(500).json({ error: 'Gagal menyimpan pendaftaran TPQ.' });
@@ -1920,6 +1887,27 @@ app.put('/api/events/:id/wa-link', async (req, res) => {
     if (!res.headersSent) res.status(500).json({ error: 'Gagal menyimpan link grup WhatsApp.' });
   }
 });
+
+// Otorisasi ubah/hapus peserta: Super Admin boleh semua; Mitra hanya peserta dari event miliknya sendiri.
+async function authorizeParticipantWrite(req: any, res: any, participant: { eventId?: string }, opts: { superadminOnly?: boolean } = {}): Promise<boolean> {
+  const sessionUser = readSessionUserId(req) ? await getUserById(readSessionUserId(req)!) : null;
+  if (!sessionUser) { res.status(401).json({ error: 'Silakan login terlebih dahulu.' }); return false; }
+  if (sessionUser.role === 'superadmin') return true;
+  if (sessionUser.role !== 'mitra' || opts.superadminOnly) { res.status(403).json({ error: 'Akses ditolak.' }); return false; }
+  const pool = await getPool();
+  const [rows] = await pool.query(
+    `SELECT 1 FROM training_proposals tp
+     WHERE tp.proposal_id_string = ?
+       AND (tp.mitra_id_string = ? OR tp.mitra_id = (SELECT u.id FROM users u WHERE u.user_id_string = ? LIMIT 1))
+     LIMIT 1`,
+    [participant.eventId ?? '', sessionUser.id, sessionUser.id]
+  );
+  if (!Array.isArray(rows) || rows.length === 0) {
+    res.status(403).json({ error: 'Anda tidak memiliki akses ke peserta event mitra lain.' });
+    return false;
+  }
+  return true;
+}
 
 app.get('/api/participants', async (req, res) => {
   try {
@@ -2040,6 +2028,7 @@ app.patch('/api/participants/:id/status', async (req, res) => {
     const pool = await getPool();
     const participant = await getParticipantById(id);
     if (!participant) return res.status(404).json({ error: 'Peserta tidak ditemukan.' });
+    if (!(await authorizeParticipantWrite(req, res, participant))) return;
     await pool.query('UPDATE participants SET status_kehadiran=?, updated_at=CURRENT_TIMESTAMP WHERE participant_id_string=?', [status, id]);
     return res.json({ success: true, participant: await getParticipantById(id) });
   } catch (error) {
@@ -2053,6 +2042,7 @@ app.put('/api/participants/:id', async (req, res) => {
     const id = String(req.params.id);
     const current = await getParticipantById(id);
     if (!current) return res.status(404).json({ error: 'Peserta tidak ditemukan.' });
+    if (!(await authorizeParticipantWrite(req, res, current))) return;
     const body = req.body ?? {};
     const pool = await getPool();
 
@@ -2089,6 +2079,7 @@ app.delete('/api/participants/:id', async (req, res) => {
     const id = String(req.params.id);
     const participant = await getParticipantById(id);
     if (!participant) return res.status(404).json({ error: 'Peserta tidak ditemukan.' });
+    if (!(await authorizeParticipantWrite(req, res, participant, { superadminOnly: true }))) return;
 
     const pool = await getPool();
     const [result] = await pool.query('DELETE FROM participants WHERE participant_id_string=?', [id]);
@@ -2611,14 +2602,20 @@ async function requireStaff(req: any, res: any) {
   return user;
 }
 
+// Bank soal bersifat terpusat: hanya Super Admin yang boleh membaca/mengelola lewat dashboard.
+async function requireSuperadminOnly(req: any, res: any) {
+  const user = await requireStaff(req, res);
+  if (!user) return null;
+  if (user.role !== 'superadmin') { res.status(403).json({ error: 'Bank soal hanya dapat dikelola Super Admin.' }); return null; }
+  return user;
+}
+
 // ---- Bank Soal ----
 app.get('/api/bank-soal', async (req, res) => {
   try {
-    const user = await requireStaff(req, res); if (!user) return;
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
     const pool = await getPool();
-    const [rows] = user.role === 'superadmin'
-      ? await pool.query('SELECT * FROM bank_soal ORDER BY id DESC')
-      : await pool.query('SELECT * FROM bank_soal WHERE mitra_id_string=? ORDER BY id DESC', [user.id]);
+    const [rows] = await pool.query('SELECT * FROM bank_soal ORDER BY id DESC');
     return res.json({ soal: (rows as any[]).map(r => ({
       id: r.soal_id_string, eventId: r.event_id_string ?? '', tipe: r.tipe, pertanyaan: r.pertanyaan,
       pilihan: jsonParse<string[]>(r.pilihan, []), jawabanBenar: r.jawaban_benar ?? '',
@@ -2628,27 +2625,136 @@ app.get('/api/bank-soal', async (req, res) => {
 
 app.post('/api/bank-soal', async (req, res) => {
   try {
-    const user = await requireStaff(req, res); if (!user) return;
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
     const b = req.body ?? {};
     const pilihan = Array.isArray(b.pilihan) ? b.pilihan.map((x: any) => String(x).trim()).filter(Boolean) : [];
     if (!String(b.pertanyaan ?? '').trim() || pilihan.length < 2) return res.status(400).json({ error: 'Pertanyaan dan minimal 2 pilihan jawaban wajib diisi.' });
     const tipe = ['pretest', 'postest', 'latihan'].includes(b.tipe) ? b.tipe : 'latihan';
+    const jawabanBenar = String(b.jawabanBenar ?? '').trim().toUpperCase();
+    if (!/^[A-E]$/.test(jawabanBenar) || jawabanBenar.charCodeAt(0) - 65 >= pilihan.length) return res.status(400).json({ error: 'Pilih jawaban benar yang sesuai dengan pilihan jawaban.' });
     const pool = await getPool();
     const id = `soal_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     await pool.query('INSERT INTO bank_soal (soal_id_string, mitra_id_string, event_id_string, tipe, pertanyaan, pilihan, jawaban_benar) VALUES (?,?,?,?,?,?,?)',
-      [id, String(user.id), b.eventId || null, tipe, String(b.pertanyaan).trim(), JSON.stringify(pilihan), b.jawabanBenar || null]);
+      [id, String(user.id), b.eventId || null, tipe, String(b.pertanyaan).trim(), JSON.stringify(pilihan), jawabanBenar]);
     return res.status(201).json({ success: true, id });
   } catch (e) { console.error('[BankSoal POST]', e); return res.status(500).json({ error: 'Gagal menyimpan soal.' }); }
 });
 
 app.delete('/api/bank-soal/:id', async (req, res) => {
   try {
-    const user = await requireStaff(req, res); if (!user) return;
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
     const pool = await getPool();
-    if (user.role === 'superadmin') await pool.query('DELETE FROM bank_soal WHERE soal_id_string=?', [String(req.params.id)]);
-    else await pool.query('DELETE FROM bank_soal WHERE soal_id_string=? AND mitra_id_string=?', [String(req.params.id), String(user.id)]);
+    await pool.query('DELETE FROM bank_soal WHERE soal_id_string=?', [String(req.params.id)]);
     return res.json({ success: true });
   } catch (e) { console.error('[BankSoal DELETE]', e); return res.status(500).json({ error: 'Gagal menghapus soal.' }); }
+});
+
+// ---- Test Pretest / Postest untuk peserta (publik, divalidasi lewat email yang terdaftar di event) ----
+// Kunci jawaban tidak pernah dikirim ke browser; penilaian dilakukan di server lalu disimpan ke
+// participants.nilai_pretest / nilai_postest (kolom yang sama dengan yang tampil di data peserta).
+const testHits = new Map<string, { n: number; reset: number }>();
+function testRateLimited(req: any, res: any): boolean {
+  const key = String(req.ip || 'unknown');
+  const now = Date.now();
+  if (testHits.size > 5000) testHits.clear();
+  const cur = testHits.get(key);
+  if (!cur || now > cur.reset) { testHits.set(key, { n: 1, reset: now + 60_000 }); return false; }
+  cur.n += 1;
+  if (cur.n > 40) { res.status(429).json({ error: 'Terlalu banyak percobaan. Coba lagi dalam satu menit.' }); return true; }
+  return false;
+}
+const parseTestTipe = (v: unknown): 'pretest' | 'postest' | null => (v === 'pretest' || v === 'postest' ? v : null);
+const cleanTestEmail = (v: unknown): string => {
+  const e = String(v ?? '').trim().toLowerCase();
+  return e.length <= 255 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : '';
+};
+
+// Event yang diikuti email ini (tanpa duplikat, tanpa yang batal / event ditolak).
+async function getTestRegistrations(pool: any, email: string, tipe: 'pretest' | 'postest') {
+  const [rows] = await pool.query(
+    `SELECT p.event_id_string, p.nilai_pretest, p.nilai_postest, tp.nama_kegiatan
+       FROM participants p
+       JOIN training_proposals tp ON tp.proposal_id_string = p.event_id_string
+      WHERE LOWER(TRIM(p.email)) = ? AND p.status_kehadiran <> 'batal' AND tp.status <> 'ditolak'
+      ORDER BY p.id DESC`, [email]);
+  const col = tipe === 'pretest' ? 'nilai_pretest' : 'nilai_postest';
+  const byEvent = new Map<string, { eventId: string; namaKegiatan: string; sudahMengerjakan: boolean }>();
+  for (const r of rows as any[]) {
+    const id = String(r.event_id_string);
+    const done = r[col] != null;
+    const cur = byEvent.get(id);
+    if (!cur) byEvent.set(id, { eventId: id, namaKegiatan: String(r.nama_kegiatan ?? ''), sudahMengerjakan: done });
+    else if (done) cur.sudahMengerjakan = true;
+  }
+  return Array.from(byEvent.values());
+}
+
+// Soal khusus event dipakai bila ada; jika tidak ada, dipakai soal umum (tanpa event). Soal tanpa kunci jawaban dilewati.
+async function getTestQuestions(pool: any, eventId: string, tipe: 'pretest' | 'postest') {
+  const cols = 'soal_id_string, pertanyaan, pilihan, jawaban_benar';
+  const keyOk = "jawaban_benar IS NOT NULL AND jawaban_benar <> ''";
+  const [specific] = await pool.query(`SELECT ${cols} FROM bank_soal WHERE tipe=? AND event_id_string=? AND ${keyOk} ORDER BY id ASC`, [tipe, eventId]);
+  if ((specific as any[]).length) return specific as any[];
+  const [general] = await pool.query(`SELECT ${cols} FROM bank_soal WHERE tipe=? AND (event_id_string IS NULL OR event_id_string='') AND ${keyOk} ORDER BY id ASC`, [tipe]);
+  return general as any[];
+}
+const publicSoal = (r: any) => ({ id: r.soal_id_string, pertanyaan: r.pertanyaan, pilihan: jsonParse<string[]>(r.pilihan, []) });
+
+// 1) Validasi email -> daftar event yang diikuti
+app.post('/api/test/lookup', async (req, res) => {
+  try {
+    if (testRateLimited(req, res)) return;
+    const tipe = parseTestTipe(req.body?.tipe);
+    const email = cleanTestEmail(req.body?.email);
+    if (!tipe) return res.status(400).json({ error: 'Jenis test tidak valid.' });
+    if (!email) return res.status(400).json({ error: 'Masukkan alamat email yang valid.' });
+    const pool = await getPool();
+    const events = await getTestRegistrations(pool, email, tipe);
+    const withCount = await Promise.all(events.map(async ev => ({ ...ev, jumlahSoal: (await getTestQuestions(pool, ev.eventId, tipe)).length })));
+    return res.json({ events: withCount });
+  } catch (e) { console.error('[Test lookup]', e); return res.status(500).json({ error: 'Gagal memeriksa email. Coba lagi.' }); }
+});
+
+// 2) Ambil soal untuk satu event (tanpa kunci jawaban)
+app.post('/api/test/start', async (req, res) => {
+  try {
+    if (testRateLimited(req, res)) return;
+    const tipe = parseTestTipe(req.body?.tipe);
+    const email = cleanTestEmail(req.body?.email);
+    const eventId = String(req.body?.eventId ?? '');
+    if (!tipe || !email || !eventId) return res.status(400).json({ error: 'Data tidak lengkap.' });
+    const pool = await getPool();
+    const ev = (await getTestRegistrations(pool, email, tipe)).find(x => x.eventId === eventId);
+    if (!ev) return res.status(403).json({ error: 'Email ini tidak terdaftar pada event tersebut.' });
+    if (ev.sudahMengerjakan) return res.status(409).json({ error: `Anda sudah mengerjakan ${tipe === 'pretest' ? 'pretest' : 'postest'} untuk event ini.` });
+    const soal = await getTestQuestions(pool, eventId, tipe);
+    if (!soal.length) return res.status(404).json({ error: `Soal ${tipe === 'pretest' ? 'pretest' : 'postest'} untuk event ini belum tersedia.` });
+    return res.json({ namaKegiatan: ev.namaKegiatan, soal: soal.map(publicSoal) });
+  } catch (e) { console.error('[Test start]', e); return res.status(500).json({ error: 'Gagal memuat soal. Coba lagi.' }); }
+});
+
+// 3) Kirim jawaban -> dinilai di server, nilai disimpan ke data peserta (sekali per jenis test)
+app.post('/api/test/submit', async (req, res) => {
+  try {
+    if (testRateLimited(req, res)) return;
+    const tipe = parseTestTipe(req.body?.tipe);
+    const email = cleanTestEmail(req.body?.email);
+    const eventId = String(req.body?.eventId ?? '');
+    const jawaban = req.body?.jawaban && typeof req.body.jawaban === 'object' ? req.body.jawaban as Record<string, unknown> : {};
+    if (!tipe || !email || !eventId) return res.status(400).json({ error: 'Data tidak lengkap.' });
+    const pool = await getPool();
+    const ev = (await getTestRegistrations(pool, email, tipe)).find(x => x.eventId === eventId);
+    if (!ev) return res.status(403).json({ error: 'Email ini tidak terdaftar pada event tersebut.' });
+    if (ev.sudahMengerjakan) return res.status(409).json({ error: 'Test ini sudah pernah dikerjakan.' });
+    const soal = await getTestQuestions(pool, eventId, tipe);
+    if (!soal.length) return res.status(404).json({ error: 'Soal belum tersedia.' });
+    const benar = soal.filter(r => String(jawaban[r.soal_id_string] ?? '').trim().toUpperCase() === String(r.jawaban_benar).trim().toUpperCase()).length;
+    const nilai = Math.round((benar / soal.length) * 10000) / 100;
+    const col = tipe === 'pretest' ? 'nilai_pretest' : 'nilai_postest';
+    const [result] = await pool.query(`UPDATE participants SET ${col}=? WHERE LOWER(TRIM(email))=? AND event_id_string=? AND ${col} IS NULL`, [nilai, email, eventId]);
+    if (!(result as any).affectedRows) return res.status(409).json({ error: 'Test ini sudah pernah dikerjakan.' });
+    return res.json({ success: true, nilai, benar, total: soal.length });
+  } catch (e) { console.error('[Test submit]', e); return res.status(500).json({ error: 'Gagal mengirim jawaban. Coba lagi.' }); }
 });
 
 // ---- Kosakata Isyarat Keislaman (publik dibaca, staff mengelola) ----

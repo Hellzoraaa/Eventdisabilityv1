@@ -141,7 +141,7 @@ export const EventCatalogPublic: React.FC<EventCatalogPublicProps> = ({
   const filteredTPQPrograms = activeTPQPrograms.filter(program => {
     if (programTypeFilter === 'Event Pelatihan') return false;
     const q = searchQuery.trim().toLowerCase();
-    return !q || program.namaProgram.toLowerCase().includes(q) || program.kota.toLowerCase().includes(q) || program.mitraOrg.toLowerCase().includes(q) || (program.durasiProgram || '').toLowerCase().includes(q);
+    return !q || program.namaProgram.toLowerCase().includes(q) || program.kota.toLowerCase().includes(q) || program.mitraOrg.toLowerCase().includes(q);
   });
 
   const handleOpenDetail = (ev: TrainingProposal) => {
@@ -400,7 +400,6 @@ export const EventCatalogPublic: React.FC<EventCatalogPublicProps> = ({
                 <div className="absolute bottom-3 left-4 right-4 text-white"><p className="text-[11px] font-medium text-white/80 mb-1">Penyelenggara: {program.mitraOrg}</p><h3 className="text-[18px] sm:text-[20px] font-bold leading-tight line-clamp-2">{program.namaProgram}</h3></div>
               </div>
               <div className="p-5 flex flex-col flex-1"><div className="grid grid-cols-1 gap-2.5 mb-4 text-[12px] text-slate-600">
-                <div className="flex items-start gap-2.5"><Icon name="schedule" className="text-[18px] text-emerald-700" /><div><p className="font-semibold text-slate-900">Durasi Program</p><p>{program.durasiProgram || '-'}</p></div></div>
                 <div className="flex items-start gap-2.5"><Icon name="calendar_month" className="text-[18px] text-emerald-700" /><div><p className="font-semibold text-slate-900">Tanggal Mulai – Berakhir</p><p>{formatEventDate(program.tanggalMulai || '')} – {formatEventDate(program.tanggalSelesai || '')}</p></div></div>
                 <div className="flex items-start gap-2.5"><Icon name="location_on" className="text-[18px] text-emerald-700" /><div><p className="font-semibold text-slate-900">Lokasi</p><p>{program.kota}, {program.provinsi}</p></div></div>
                 <div className="flex items-start gap-2.5"><Icon name="menu_book" className="text-[18px] text-emerald-700" /><div><p className="font-semibold text-slate-900">Metode Pendidikan</p><p>Al-Qur’an {program.jenisTPQ === 'braille' ? 'Braille' : 'Isyarat'}</p></div></div>

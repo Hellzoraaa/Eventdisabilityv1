@@ -36,6 +36,7 @@ import { LoginRequiredNotice } from './components/LoginRequiredNotice.tsx';
 import { applyThemeColors } from './utils/themeColors.ts';
 import { EventDetailPage, parseEventRoute } from './components/EventDetailPage.tsx';
 import { TPQDetailPage, parseTPQRoute } from './components/TPQHomeSection.tsx';
+import { TestPage, parseTestRoute } from './components/TestPage.tsx';
 
 export default function App() {
   // Views: 'events' | 'mitra' | 'superadmin' | 'map' | 'users' | 'reports' | 'manage_events' | 'participants' | 'disabilities' | 'settings'
@@ -57,14 +58,11 @@ export default function App() {
   >('events');
   const [eventRoute, setEventRoute] = useState(() => parseEventRoute(window.location.hash));
   const [tpqRoute, setTpqRoute] = useState(() => parseTPQRoute(window.location.hash));
+  const [testRoute, setTestRoute] = useState(() => parseTestRoute(window.location.hash));
 
   // Auth state
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  // Area Data Peserta penuh hanya boleh diakses Super Admin. Mitra menggunakan daftar peserta event miliknya di dashboard Mitra.
-  useEffect(() => {
-    if (currentUser?.role === 'mitra' && activeView === 'participants') setActiveView('mitra');
-  }, [currentUser, activeView]);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
   const [loginRoleHint, setLoginRoleHint] = useState<'mitra' | 'superadmin' | undefined>(undefined);
@@ -73,6 +71,7 @@ export default function App() {
   const [proposals, setProposals] = useState<TrainingProposal[]>([]);
   const [tpqPrograms, setTpqPrograms] = useState<TPQProgram[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [mitraRequestedTab, setMitraRequestedTab] = useState<'daftar' | 'ajukan' | 'ajukan_pendidikan' | undefined>(undefined);
   const [communities, setCommunities] = useState<QuranCommunity[]>([]);
   const [disabilities, setDisabilities] = useState<DisabilityMaster[]>(() => {
     try {
@@ -284,9 +283,11 @@ export default function App() {
     const handleHash = () => {
       const route = parseEventRoute(window.location.hash);
       const tpq = parseTPQRoute(window.location.hash);
+      const test = parseTestRoute(window.location.hash);
       setEventRoute(route);
       setTpqRoute(tpq);
-      if (route || tpq) setActiveView('events');
+      setTestRoute(test);
+      if (route || tpq || test) setActiveView('events');
     };
 
     handleHash();
@@ -334,6 +335,16 @@ export default function App() {
     setProposals(prev => prev.map(p => p.id === rejected.id ? rejected : p));
     showToast(`Kegiatan ditolak.`);
     handleLogAction('Penolakan Event', 'events', `Super Admin menolak usulan event "${rejected.namaKegiatan}".`, 'warning');
+  };
+
+  // Muat ulang katalog publik pendidikan setelah program TPQ dibuat/diubah.
+  const refreshTpqCatalog = async () => {
+    try {
+      const publicData = await fetchJson<{ programs?: TPQProgram[] }>('/api/tpq?publicCatalog=true');
+      setTpqPrograms(Array.isArray(publicData.programs) ? publicData.programs : []);
+    } catch (error) {
+      console.error('[TPQ] Gagal memperbarui katalog publik:', error);
+    }
   };
 
   const handleProposalCreated = (newProp: TrainingProposal) => {
@@ -530,6 +541,11 @@ export default function App() {
         onRegisterSuccess={handleRegisterSuccess}
       />
     );
+  }
+
+  // Halaman Test peserta (#test/pretest | #test/postest): validasi email -> pilih event -> kerjakan soal.
+  if (activeView === 'events' && testRoute) {
+    return <TestPage tipe={testRoute.tipe} appSettings={appSettings} />;
   }
 
   // Detail program TPQ juga halaman penuh (#tpq/<id>), bukan modal/pop-up.
@@ -904,6 +920,11 @@ export default function App() {
                 currentUser={currentUser}
                 proposals={proposals}
                 participants={participants}
+                onNavigateToParticipants={() => setActiveView('participants')}
+                onNavigateToManageTpq={() => setActiveView('manage_tpq')}
+                onTpqProgramsUpdated={refreshTpqCatalog}
+                requestedTab={mitraRequestedTab}
+                onRequestedTabConsumed={() => setMitraRequestedTab(undefined)}
                 onProposalCreated={handleProposalCreated}
                 onProposalUpdated={handleProposalUpdated}
                 onOpenChangePassword={() => setIsChangePasswordModalOpen(true)}
@@ -1028,7 +1049,9 @@ export default function App() {
             currentUser ? (
               <ParticipantManagement
                 currentUser={currentUser}
-                events={proposals}
+                events={currentUser.role === 'mitra'
+                  ? proposals.filter(p => p.mitraId === currentUser.id || p.mitraOrg === currentUser.organizationName)
+                  : proposals}
                 disabilities={disabilities}
                 onParticipantCreated={(newP) => {
                   setParticipants(prev => [newP, ...prev.filter(p => p.id !== newP.id)]);
@@ -1147,11 +1170,11 @@ export default function App() {
           )}
 
           {activeView === 'bank_soal' && (
-            currentUser && (currentUser.role === 'superadmin' || currentUser.role === 'mitra') ? (
+            currentUser && currentUser.role === 'superadmin' ? (
               <BankSoal currentUser={currentUser} events={proposals} />
             ) : (
               <div className="max-w-md mx-auto px-4 py-16 text-center">
-                <LoginRequiredNotice roleRequired="mitra" customTitle="Bank Soal" customDescription="Hanya Mitra dan Super Admin yang dapat mengakses halaman ini." onOpenLogin={() => handleOpenLogin('mitra')} />
+                <LoginRequiredNotice roleRequired="superadmin" customTitle="Bank Soal" customDescription="Hanya Super Admin yang dapat mengakses halaman ini." onOpenLogin={() => handleOpenLogin('superadmin')} />
               </div>
             )
           )}
@@ -1160,7 +1183,11 @@ export default function App() {
 
           {activeView === 'manage_tpq' && (
             currentUser && (currentUser.role === 'superadmin' || currentUser.role === 'mitra') ? (
-              <TPQManagement currentUser={currentUser} onProgramsUpdated={async () => { try { const publicData = await fetchJson<{ programs?: TPQProgram[] }>('/api/tpq?publicCatalog=true'); setTpqPrograms(Array.isArray(publicData.programs) ? publicData.programs : []); } catch (error) { console.error('[TPQ] Gagal memperbarui katalog publik:', error); } }} />
+              <TPQManagement
+                currentUser={currentUser}
+                onProgramsUpdated={refreshTpqCatalog}
+                onRequestNewProgram={() => { setMitraRequestedTab('ajukan_pendidikan'); setActiveView('mitra'); }}
+              />
             ) : (
               <div className="max-w-md mx-auto px-4 py-16 text-center">
                 <LoginRequiredNotice

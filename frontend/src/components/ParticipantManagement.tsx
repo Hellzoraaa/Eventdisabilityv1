@@ -19,6 +19,9 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
   onParticipantCreated,
   onParticipantDeleted,
 }) => {
+  // Super Admin melihat seluruh peserta; Mitra hanya peserta event/program miliknya (dibatasi juga di backend).
+  const isMitra = currentUser?.role === 'mitra';
+  const scope: 'mitra' | 'superadmin' = isMitra ? 'mitra' : 'superadmin';
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -256,7 +259,10 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
   };
 
   // Safe participants array and filter
-  const safeParticipants = Array.isArray(participants) ? participants : [];
+  const ownEventIds = useMemo(() => new Set((events || []).map(ev => ev.id)), [events]);
+  const safeParticipants = (Array.isArray(participants) ? participants : []).filter(
+    p => !isMitra || ownEventIds.has(p.eventId)
+  );
 
   const filteredParticipants = safeParticipants.filter(p => {
     const query = searchQuery.toLowerCase();
@@ -302,10 +308,10 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
             <Icon name="groups" className="text-primary text-[26px]" />
             <h1 className="text-[20px] font-bold text-on-surface">Dashboard Data Peserta</h1>
           </div>
-          <p className="text-[13px] text-on-surface-variant mb-4">Peserta yang mendaftar pada program Pendidikan TPQ dari seluruh mitra penyelenggara.</p>
+          <p className="text-[13px] text-on-surface-variant mb-4">{isMitra ? 'Peserta yang mendaftar pada program Pendidikan TPQ yang Anda selenggarakan.' : 'Peserta yang mendaftar pada program Pendidikan TPQ dari seluruh mitra penyelenggara.'}</p>
           {sourceTabs}
         </div>
-        <TPQRegistrations scope="superadmin" />
+        <TPQRegistrations scope={scope} />
       </div>
     );
   }
@@ -331,7 +337,9 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
             <h1 className="text-[20px] font-bold text-on-surface">Dashboard Data Peserta</h1>
           </div>
           <p className="text-[13px] text-on-surface-variant">
-            Pusat data terverifikasi santri, peserta pelatihan Al-Quran, pendamping, dan kebutuhan aksesibilitas inklusif.
+            {isMitra
+              ? 'Data peserta pada event pelatihan yang Anda selenggarakan. Peserta event mitra lain tidak ditampilkan.'
+              : 'Pusat data terverifikasi santri, peserta pelatihan Al-Quran, pendamping, dan kebutuhan aksesibilitas inklusif.'}
           </p>
         </div>
 
@@ -344,13 +352,15 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
             <span>Unduh CSV Peserta</span>
           </button>
 
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[12px] font-semibold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
-          >
-            <Icon name="person_add" className="text-[18px]" />
-            <span>Tambah Peserta Baru</span>
-          </button>
+          {!isMitra && (
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[12px] font-semibold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+            >
+              <Icon name="person_add" className="text-[18px]" />
+              <span>Tambah Peserta Baru</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -359,7 +369,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
         <div className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/30 shadow-sm">
           <span className="text-on-surface-variant text-[12px] font-medium">Total Peserta Terdata</span>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-[26px] font-bold text-on-surface">{participants.length}</span>
+            <span className="text-[26px] font-bold text-on-surface">{safeParticipants.length}</span>
             <span className="text-[12px] text-outline">Santri</span>
           </div>
         </div>
@@ -369,7 +379,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-[26px] font-bold text-emerald-600">{totalHadir}</span>
             <span className="text-[12px] text-emerald-700 font-medium">
-              ({participants.length > 0 ? Math.round((totalHadir / participants.length) * 100) : 0}%)
+              ({safeParticipants.length > 0 ? Math.round((totalHadir / safeParticipants.length) * 100) : 0}%)
             </span>
           </div>
         </div>
@@ -379,7 +389,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-[26px] font-bold text-blue-600">{totalTerdaftar}</span>
             <span className="text-[12px] text-blue-700 font-medium">
-              ({participants.length > 0 ? Math.round((totalTerdaftar / participants.length) * 100) : 0}%)
+              ({safeParticipants.length > 0 ? Math.round((totalTerdaftar / safeParticipants.length) * 100) : 0}%)
             </span>
           </div>
         </div>
@@ -389,7 +399,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-[26px] font-bold text-amber-600">{totalBatal}</span>
             <span className="text-[12px] text-amber-700 font-medium">
-              ({participants.length > 0 ? Math.round((totalBatal / participants.length) * 100) : 0}%)
+              ({safeParticipants.length > 0 ? Math.round((totalBatal / safeParticipants.length) * 100) : 0}%)
             </span>
           </div>
         </div>
@@ -567,13 +577,15 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                         >
                           <Icon name="edit" className="text-[18px]" />
                         </button>
-                        <button
-                          onClick={() => setDeletingParticipant(p)}
-                          className="p-1 text-on-surface-variant hover:text-error rounded hover:bg-error/10 cursor-pointer transition-colors"
-                          title="Hapus Peserta"
-                        >
-                          <Icon name="delete" className="text-[18px]" />
-                        </button>
+                        {!isMitra && (
+                          <button
+                            onClick={() => setDeletingParticipant(p)}
+                            className="p-1 text-on-surface-variant hover:text-error rounded hover:bg-error/10 cursor-pointer transition-colors"
+                            title="Hapus Peserta"
+                          >
+                            <Icon name="delete" className="text-[18px]" />
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="py-3 px-4"><ScoreCell participant={p} field="nilaiPostest" onSaved={(np) => setParticipants(prev => prev.map(x => x.id === np.id ? np : x))} /></td>

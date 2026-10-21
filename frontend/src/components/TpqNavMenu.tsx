@@ -91,6 +91,8 @@ interface Props {
   /** Kelas warna teks tombol utama (desktop), mengikuti warna navbar. */
   className?: string;
   label?: string;
+  /** Bila diisi, menu "Test" (Pretest / Postest) ditampilkan di bawah pilihan jenis peserta. */
+  onSelectTest?: (tipe: 'pretest' | 'postest') => void;
 }
 
 const Chevron = ({ open, className = '' }: { open: boolean; className?: string }) => (
@@ -104,8 +106,10 @@ export const TpqNavMenu: React.FC<Props> = ({
   onNavigate,
   className = '',
   label = 'Pendidikan',
+  onSelectTest,
 }) => {
   const [open, setOpen] = useState(false);
+  const [testOpen, setTestOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // Tutup saat klik di luar / tekan Escape (desktop).
@@ -126,6 +130,13 @@ export const TpqNavMenu: React.FC<Props> = ({
   const choose = (jenisPeserta: string) => {
     onSelect(jenisPeserta);
     setOpen(false);
+    onNavigate?.();
+  };
+
+  const chooseTest = (tipe: 'pretest' | 'postest') => {
+    onSelectTest?.(tipe);
+    setOpen(false);
+    setTestOpen(false);
     onNavigate?.();
   };
 
@@ -155,6 +166,25 @@ export const TpqNavMenu: React.FC<Props> = ({
                 {opt === JENIS_PESERTA_GABUNGAN ? 'Tunanetra dan Tunarungu' : opt}
               </button>
             ))}
+            {onSelectTest && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setTestOpen(o => !o)}
+                  aria-expanded={testOpen}
+                  className="flex items-center justify-between gap-2 text-left px-3 py-2 mt-1 border-t border-slate-100 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <span>Test</span>
+                  <Chevron open={testOpen} />
+                </button>
+                {testOpen && (
+                  <div className="ml-3 pl-3 border-l-2 border-slate-200 flex flex-col space-y-1">
+                    <button type="button" onClick={() => chooseTest('pretest')} className="text-left px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors">Pretest</button>
+                    <button type="button" onClick={() => chooseTest('postest')} className="text-left px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors">Postest</button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -192,6 +222,27 @@ export const TpqNavMenu: React.FC<Props> = ({
               {opt === JENIS_PESERTA_GABUNGAN ? 'Tunanetra dan Tunarungu' : opt}
             </button>
           ))}
+          {onSelectTest && (
+            <>
+              <div className="my-1 border-t border-slate-100" />
+              <button
+                type="button"
+                role="menuitem"
+                aria-expanded={testOpen}
+                onClick={() => setTestOpen(o => !o)}
+                className="flex w-full items-center justify-between gap-2.5 text-left px-3 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <span>Test</span>
+                <Chevron open={testOpen} />
+              </button>
+              {testOpen && (
+                <div className="ml-3 pl-2 border-l-2 border-slate-100">
+                  <button type="button" role="menuitem" onClick={() => chooseTest('pretest')} className="flex w-full items-center text-left px-3 py-2 rounded-xl text-[14px] font-medium hover:bg-slate-50 transition-colors cursor-pointer">Pretest</button>
+                  <button type="button" role="menuitem" onClick={() => chooseTest('postest')} className="flex w-full items-center text-left px-3 py-2 rounded-xl text-[14px] font-medium hover:bg-slate-50 transition-colors cursor-pointer">Postest</button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

@@ -85,7 +85,7 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Bank Soal</h1>
-          <p className="text-sm text-slate-600 mt-1.5">Kumpulan soal pretest, postest, dan latihan untuk peserta pelatihan.</p>
+          <p className="text-sm text-slate-600 mt-1.5">Bank soal terpusat. Soal pretest dan postest tampil untuk peserta di menu Pendidikan, lalu Test. Soal tanpa event tertentu berlaku untuk semua event.</p>
         </div>
         <button onClick={() => { setShowForm(v => !v); setError(''); }} className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold cursor-pointer">
           <Icon name="add_circle" className="text-[18px]" />{showForm ? 'Tutup Form' : 'Tambah Soal'}
@@ -100,7 +100,7 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block font-semibold mb-1">Event</label>
               <select value={eventId} onChange={e => setEventId(e.target.value)} className={inputCls}>
-                <option value="">Semua event</option>
+                <option value="">Semua event (soal umum)</option>
                 {myEvents.map(ev => <option key={ev.id} value={ev.id}>{ev.namaKegiatan}</option>)}
               </select></div>
             <div><label className="block font-semibold mb-1">Jenis Soal *</label>
