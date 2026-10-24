@@ -1,5 +1,5 @@
 import React from 'react';
-import { BENEFIT_TEMPLATE } from '../utils/benefitTemplate.ts';
+import { BENEFIT_TEMPLATE } from "../utils/BenefitTemplate.ts";
 import { TemplateChecklistPicker } from './TemplateChecklistPicker.tsx';
 
 interface BenefitPickerProps {
