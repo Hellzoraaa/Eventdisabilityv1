@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from './Icon.tsx';
 import { TrainingProposal, User } from '../types.ts';
+import { SOAL_TEMPLATE_CSV, MAX_IMPORT_ROWS, parseSoalImport, soalKey } from '../utils/SoalImport.ts';
 
 interface Soal {
   id: string;
@@ -34,6 +35,14 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
   const [pilihan, setPilihan] = useState<string[]>(['', '', '', '']);
   const [jawabanBenar, setJawabanBenar] = useState('A');
 
+  // ---- Impor soal dari file CSV / tempel dari Excel ----
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importFileName, setImportFileName] = useState('');
+  const [importEventId, setImportEventId] = useState('');
+  const [importTipe, setImportTipe] = useState<Soal['tipe']>('pretest');
+  const [importing, setImporting] = useState(false);
+
   const myEvents = events.filter(e => currentUser.role === 'superadmin' || String(e.mitraId) === String(currentUser.id));
 
   const load = useCallback(async () => {
@@ -47,6 +56,69 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+
+  const existingKeys = useMemo(
+    () => new Set(soal.map(s => soalKey(s.eventId, s.tipe, s.pertanyaan))),
+    [soal],
+  );
+  const importResult = useMemo(
+    () => parseSoalImport(importText, { defaultTipe: importTipe, eventId: importEventId, existingKeys }),
+    [importText, importTipe, importEventId, existingKeys],
+  );
+  const importValid = importResult.rows.filter(r => !r.error && !r.duplicate);
+  const importInvalid = importResult.rows.filter(r => r.error);
+  const importDuplicate = importResult.rows.filter(r => !r.error && r.duplicate);
+
+  const closeImport = () => {
+    setShowImport(false); setImportText(''); setImportFileName('');
+    setImportEventId(''); setImportTipe('pretest');
+  };
+
+  const downloadTemplate = () => {
+    const blob = new Blob([SOAL_TEMPLATE_CSV], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'template-impor-bank-soal.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = async (file: File | undefined | null) => {
+    if (!file) return;
+    setError(''); setNotice('');
+    if (/\.(xlsx|xlsm|xls)$/i.test(file.name)) {
+      setError('File Excel (.xlsx/.xls) belum dapat dibaca langsung. Simpan sebagai CSV (File → Save As → CSV), atau salin sel dari Excel lalu tempel pada kolom teks di bawah.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) { setError('Ukuran file maksimal 5 MB.'); return; }
+    try {
+      const buffer = await file.arrayBuffer();
+      let text = new TextDecoder('utf-8').decode(buffer);
+      if (text.includes('\uFFFD')) text = new TextDecoder('windows-1252').decode(buffer);
+      setImportText(text);
+      setImportFileName(file.name);
+    } catch { setError('File tidak dapat dibaca. Coba simpan ulang sebagai CSV.'); }
+  };
+
+  const submitImport = async () => {
+    if (importValid.length === 0) return;
+    setImporting(true); setError(''); setNotice('');
+    try {
+      const res = await fetch('/api/bank-soal/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: importEventId || null,
+          items: importValid.map(r => ({ pertanyaan: r.pertanyaan, pilihan: r.pilihan, jawabanBenar: r.jawabanBenar, tipe: r.tipe })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal mengimpor soal.');
+      const skipped = Number(data.skipped) || 0;
+      setNotice(`${data.inserted} soal berhasil diimpor${skipped ? `, ${skipped} dilewati karena sudah ada` : ''}.`);
+      closeImport(); await load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Gagal mengimpor soal.'); }
+    finally { setImporting(false); }
+  };
 
   const reset = () => { setPertanyaan(''); setPilihan(['', '', '', '']); setJawabanBenar('A'); };
 
@@ -87,13 +159,102 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Bank Soal</h1>
           <p className="text-sm text-slate-600 mt-1.5">Bank soal terpusat. Soal pretest dan postest tampil untuk peserta di menu Pendidikan, lalu Test. Soal tanpa event tertentu berlaku untuk semua event.</p>
         </div>
-        <button onClick={() => { setShowForm(v => !v); setError(''); }} className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold cursor-pointer">
-          <Icon name="add_circle" className="text-[18px]" />{showForm ? 'Tutup Form' : 'Tambah Soal'}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => { setShowImport(v => !v); setShowForm(false); setError(''); setNotice(''); }} className="inline-flex items-center gap-2 px-5 py-2.5 border border-primary text-primary hover:bg-primary/5 rounded-xl text-[13px] font-semibold cursor-pointer">
+            <Icon name="upload_file" className="text-[18px]" />{showImport ? 'Tutup Impor' : 'Import Soal'}
+          </button>
+          <button onClick={() => { setShowForm(v => !v); setShowImport(false); setError(''); }} className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold cursor-pointer">
+            <Icon name="add_circle" className="text-[18px]" />{showForm ? 'Tutup Form' : 'Tambah Soal'}
+          </button>
+        </div>
       </div>
 
       {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
+
+      {showImport && (
+        <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 text-[13px]">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Import Soal dari File</h2>
+            <p className="text-slate-600 mt-1">Unggah file CSV atau tempel langsung sel dari Excel. Kolom yang dipakai: <strong>Pertanyaan, A, B, C, D, E, Jawaban, Jenis</strong>. Kolom C–E dan Jenis boleh dikosongkan; jika Jenis kosong, dipakai jenis yang dipilih di bawah.</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div><label className="block font-semibold mb-1">Event</label>
+              <select value={importEventId} onChange={e => setImportEventId(e.target.value)} className={inputCls}>
+                <option value="">Semua event (soal umum)</option>
+                {myEvents.map(ev => <option key={ev.id} value={ev.id}>{ev.namaKegiatan}</option>)}
+              </select></div>
+            <div><label className="block font-semibold mb-1">Jenis soal bawaan</label>
+              <select value={importTipe} onChange={e => setImportTipe(e.target.value as Soal['tipe'])} className={inputCls}>
+                <option value="pretest">Pretest</option><option value="postest">Postest</option><option value="latihan">Latihan</option>
+              </select></div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={downloadTemplate} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 font-semibold hover:bg-slate-50 cursor-pointer">
+              <Icon name="download" className="text-[18px]" />Unduh Template CSV
+            </button>
+            <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-semibold cursor-pointer hover:bg-slate-800">
+              <Icon name="upload_file" className="text-[18px]" />Pilih File CSV
+              <input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" className="hidden"
+                onChange={e => { void handleImportFile(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            {importFileName && <span className="text-slate-600">File: <strong>{importFileName}</strong></span>}
+          </div>
+
+          <div>
+            <label className="block font-semibold mb-1">Atau tempel dari Excel</label>
+            <textarea rows={5} value={importText} onChange={e => { setImportText(e.target.value); setImportFileName(''); }}
+              placeholder={'Salin sel dari Excel (termasuk baris judul) lalu tempel di sini.\nContoh judul: Pertanyaan  A  B  C  D  Jawaban'}
+              className={`${inputCls} font-mono text-[12px]`} />
+            <p className="text-[12px] text-slate-500 mt-1">Maksimal {MAX_IMPORT_ROWS} soal per impor. Soal yang sama (event, jenis, dan pertanyaan) otomatis dilewati.</p>
+          </div>
+
+          {importResult.fileError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-800">{importResult.fileError}</div>}
+
+          {importResult.rows.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2 text-[12px] font-semibold">
+                <span className="rounded-full bg-slate-100 text-slate-700 px-3 py-1">{importResult.rows.length} baris</span>
+                <span className="rounded-full bg-emerald-50 text-emerald-800 px-3 py-1">{importValid.length} siap diimpor</span>
+                {importDuplicate.length > 0 && <span className="rounded-full bg-amber-50 text-amber-800 px-3 py-1">{importDuplicate.length} sudah ada (dilewati)</span>}
+                {importInvalid.length > 0 && <span className="rounded-full bg-rose-50 text-rose-800 px-3 py-1">{importInvalid.length} bermasalah (dilewati)</span>}
+              </div>
+              <div className="max-h-80 overflow-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-[12px]">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr><th className="px-3 py-2">Baris</th><th className="px-3 py-2">Pertanyaan</th><th className="px-3 py-2">Pilihan</th><th className="px-3 py-2">Kunci</th><th className="px-3 py-2">Jenis</th><th className="px-3 py-2">Status</th></tr>
+                  </thead>
+                  <tbody>
+                    {importResult.rows.map(r => (
+                      <tr key={r.line} className="border-t border-slate-100 align-top">
+                        <td className="px-3 py-2 text-slate-500">{r.line}</td>
+                        <td className="px-3 py-2 max-w-[320px]" style={{ overflowWrap: 'anywhere' }}>{r.pertanyaan.length > 120 ? `${r.pertanyaan.slice(0, 120)}…` : r.pertanyaan || '—'}</td>
+                        <td className="px-3 py-2">{r.pilihan.length}</td>
+                        <td className="px-3 py-2 font-bold">{r.jawabanBenar || '—'}</td>
+                        <td className="px-3 py-2">{TIPE_LABEL[r.tipe]}</td>
+                        <td className="px-3 py-2">
+                          {r.error ? <span className="text-rose-700">{r.error}</span>
+                            : r.duplicate ? <span className="text-amber-700">Sudah ada</span>
+                            : <span className="text-emerald-700 font-semibold">Siap</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+            <button type="button" onClick={closeImport} className="px-5 py-2.5 rounded-xl font-semibold hover:bg-slate-100 cursor-pointer">Batal</button>
+            <button type="button" disabled={importing || importValid.length === 0} onClick={() => void submitImport()} className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-semibold disabled:opacity-50 cursor-pointer">
+              {importing ? 'Mengimpor...' : `Impor ${importValid.length} Soal`}
+            </button>
+          </div>
+        </section>
+      )}
 
       {showForm && (
         <form onSubmit={submit} className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 text-[13px]">
@@ -111,7 +272,7 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
           <div><label className="block font-semibold mb-1">Pertanyaan *</label>
             <textarea required rows={3} value={pertanyaan} onChange={e => setPertanyaan(e.target.value)} className={inputCls} /></div>
           <div className="space-y-2">
-            <label className="block font-semibold">Pilihan Jawaban * (minimal 2)</label>
+            <label className="block font-semibold">Pilihan Jawaban *</label>
             {pilihan.map((p, i) => (
               <div key={i} className="flex items-center gap-2">
                 <span className="w-6 font-bold text-slate-600">{HURUF[i]}.</span>

@@ -205,8 +205,10 @@ function mapDbTPQ(row: any): TPQProgram {
 function dateOnly(value: any): string {
   if (value == null || value === '') return '';
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    // Use UTC parts because mysql2 commonly materializes DATE values at UTC midnight.
-    return value.toISOString().slice(0, 10);
+    // Pool memakai dateStrings untuk kolom DATE, jadi Date di sini hanya muncul dari sumber lain.
+    // Pakai komponen tanggal lokal (bukan UTC) agar tanggal kalender tidak bergeser satu hari di WIB.
+    const y = value.getFullYear(), m = String(value.getMonth() + 1).padStart(2, '0'), d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
   const raw = String(value).trim();
   const iso = raw.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -237,6 +239,7 @@ function mapDbEvent(row: any): TrainingProposal {
     deskripsiPelatihan: row.deskripsi_pelatihan ?? '',
     benefit: row.benefit ?? '',
     persyaratan: row.persyaratan ?? '',
+    durasiProgram: row.durasi_program ?? '',
     batasPendaftaran: dateOnly(row.batas_pendaftaran),
     lokasiDanAlamat: row.lokasi_dan_alamat ?? '',
     provinsi: row.provinsi ?? '',
@@ -244,6 +247,7 @@ function mapDbEvent(row: any): TrainingProposal {
     latitude: Number(row.latitude ?? 0),
     longitude: Number(row.longitude ?? 0),
     tanggalKegiatan: schedule.date,
+    tanggalBerakhirKegiatan: dateOnly(row.tanggal_berakhir_kegiatan) || undefined,
     waktuMulai: schedule.start,
     waktuSelesai: schedule.end,
     jamMulai: schedule.start,
@@ -261,8 +265,6 @@ function mapDbEvent(row: any): TrainingProposal {
     logoUrl: row.logo_url ?? row.logoUrl ?? row.mitra_logo ?? row.mitraLogo ?? row.userOrgLogo ?? undefined,
     isVerified: row.is_verified != null ? Boolean(row.is_verified) : true,
     isMitraResmi: row.is_mitra_resmi != null ? Boolean(row.is_mitra_resmi) : true,
-    batch: row.batch ?? 'Batch 1',
-    metodeBelajar: row.metode_belajar ?? (row.lokasi_dan_alamat && row.lokasi_dan_alamat.toLowerCase().includes('online') ? 'Daring (Online)' : 'Tatap Muka & Mandiri'),
     alurSeleksi: row.alur_seleksi ?? 'Seleksi Berkas & Verifikasi Khusus',
     kategoriDisabilitasUtama: row.kategori_disabilitas_utama ?? (
       (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('braille') || row.nama_kegiatan.toLowerCase().includes('netra'))) ? 'Tunanetra' :
@@ -1224,6 +1226,25 @@ app.delete('/api/logs/:id', async (req, res) => {
 
 // ======================== EVENTS ========================
 
+// Kolom durasi_program pada training_proposals ditambahkan otomatis sekali per proses bila database lama belum punya.
+let eventDurasiColumnReady = false;
+async function ensureEventDurasiColumn(pool: any) {
+  if (eventDurasiColumnReady) return;
+  const [cols] = await pool.query(
+    "SELECT COUNT(*) AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'training_proposals' AND COLUMN_NAME = 'durasi_program'"
+  );
+  if (!Number((cols as any[])[0]?.n)) {
+    await pool.query("ALTER TABLE training_proposals ADD COLUMN durasi_program varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER waktu_selesai");
+  }
+  const [endDateCols] = await pool.query(
+    "SELECT COUNT(*) AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'training_proposals' AND COLUMN_NAME = 'tanggal_berakhir_kegiatan'"
+  );
+  if (!Number((endDateCols as any[])[0]?.n)) {
+    await pool.query("ALTER TABLE training_proposals ADD COLUMN tanggal_berakhir_kegiatan DATE DEFAULT NULL AFTER tanggal_kegiatan");
+  }
+  eventDurasiColumnReady = true;
+}
+
 async function getEventById(id: string) {
   const pool = await getPool();
   const [rows] = await pool.query(
@@ -1276,6 +1297,7 @@ app.post('/api/events', async (req, res) => {
   try {
     const body = req.body ?? {};
     const required = ['namaKegiatan', 'jenisEvent', 'deskripsiPelatihan', 'lokasiDanAlamat', 'provinsi', 'kota', 'tanggalKegiatan', 'waktuMulai', 'waktuSelesai'];
+    await ensureEventDurasiColumn(await getPool());
     for (const key of required) {
       if (!body[key]) return res.status(400).json({ error: `${key} wajib diisi.` });
     }
@@ -1293,16 +1315,18 @@ app.post('/api/events', async (req, res) => {
     }
 
     const waLinkEvent = String(body.linkGrupWa ?? '').trim() || null;
+    const durasiProgramEvent = String(body.durasiProgram ?? '').trim().slice(0, 100) || null;
     if (waLinkEvent && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+/.test(waLinkEvent)) return res.status(400).json({ error: 'Link WhatsApp harus berupa https://chat.whatsapp.com/...' });
 
+    await ensureEventDurasiColumn(pool);
     await pool.query(
       `INSERT INTO training_proposals
        (proposal_id_string, mitra_id, mitra_id_string, nama_kegiatan, jenis_event,
         event_category_id_string, disability_id_string, deskripsi_pelatihan, benefit, persyaratan, batas_pendaftaran,
-        lokasi_dan_alamat, provinsi, kota, latitude, longitude, tanggal_kegiatan, waktu_mulai, waktu_selesai,
+        lokasi_dan_alamat, provinsi, kota, latitude, longitude, tanggal_kegiatan, tanggal_berakhir_kegiatan, waktu_mulai, waktu_selesai,
         target_dan_kuota_peserta, kuota_disetujui, kebutuhan_peserta, foto_dokumentasi, status,
-        alasan_penolakan, tanggal_persetujuan, link_pendaftaran, is_aktif, jumlah_pendaftar, link_grup_wa)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'menunggu_persetujuan', NULL, NULL, NULL, FALSE, 0, ?)`,
+        alasan_penolakan, tanggal_persetujuan, link_pendaftaran, is_aktif, jumlah_pendaftar, link_grup_wa, durasi_program)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'menunggu_persetujuan', NULL, NULL, NULL, FALSE, 0, ?, ?)`,
       [
         proposalId,
         mitraNumericId,
@@ -1321,6 +1345,7 @@ app.post('/api/events', async (req, res) => {
         body.latitude == null ? null : Number(body.latitude),
         body.longitude == null ? null : Number(body.longitude),
         String(body.tanggalKegiatan).split(' (')[0],
+        body.tanggalBerakhirKegiatan || null,
         body.waktuMulai || body.jamMulai || null,
         body.waktuSelesai || body.jamSelesai || null,
         Number(body.targetDanKuotaPeserta || 0),
@@ -1328,6 +1353,7 @@ app.post('/api/events', async (req, res) => {
         JSON.stringify(Array.isArray(body.kebutuhanPeserta) ? body.kebutuhanPeserta : []),
         JSON.stringify(Array.isArray(body.fotoDokumentasi) ? body.fotoDokumentasi : []),
         waLinkEvent,
+        durasiProgramEvent,
       ]
     );
 
@@ -1347,6 +1373,7 @@ app.put('/api/events/:id', async (req, res) => {
     if (!current) return res.status(404).json({ error: 'Event tidak ditemukan.' });
     const body = req.body ?? {};
     const pool = await getPool();
+    await ensureEventDurasiColumn(pool);
 
     let mitraNumericId: number | null = null;
     let mitraIdString = body.mitraId !== undefined ? (body.mitraId ? String(body.mitraId) : null) : (current.mitraId ?? null);
@@ -1359,18 +1386,22 @@ app.put('/api/events/:id', async (req, res) => {
     const nextStart = body.waktuMulai ?? body.jamMulai ?? current.waktuMulai;
     const nextEnd = body.waktuSelesai ?? body.jamSelesai ?? current.waktuSelesai;
     if (nextStart && nextEnd && String(nextEnd).slice(0, 5) <= String(nextStart).slice(0, 5)) return res.status(400).json({ error: 'Jam selesai harus setelah jam mulai.' });
+    const durasiProgramPut = body.durasiProgram !== undefined
+      ? (String(body.durasiProgram ?? '').trim().slice(0, 100) || null)
+      : (String((current as any).durasiProgram ?? '').trim() || null);
     const waLinkPut = body.linkGrupWa !== undefined ? (String(body.linkGrupWa).trim() || null) : null;
     if (waLinkPut && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+/.test(waLinkPut)) return res.status(400).json({ error: 'Link WhatsApp harus berupa https://chat.whatsapp.com/...' });
     const newStatus = ['menunggu_persetujuan', 'disetujui', 'ditolak'].includes(body.status) ? body.status : current.status;
     const foto = body.fotoDokumentasi !== undefined ? (Array.isArray(body.fotoDokumentasi) ? body.fotoDokumentasi : [body.fotoDokumentasi]) : current.fotoDokumentasi;
 
+    await ensureEventDurasiColumn(pool);
     await pool.query(
       `UPDATE training_proposals SET
         mitra_id=?, mitra_id_string=?, nama_kegiatan=?, jenis_event=?,
         event_category_id_string=?, disability_id_string=?, deskripsi_pelatihan=?, benefit=?, persyaratan=?, batas_pendaftaran=?,
-        lokasi_dan_alamat=?, provinsi=?, kota=?, latitude=?, longitude=?, tanggal_kegiatan=?, waktu_mulai=?, waktu_selesai=?,
+        lokasi_dan_alamat=?, provinsi=?, kota=?, latitude=?, longitude=?, tanggal_kegiatan=?, tanggal_berakhir_kegiatan=?, waktu_mulai=?, waktu_selesai=?,
         target_dan_kuota_peserta=?, kuota_disetujui=?, kebutuhan_peserta=?, foto_dokumentasi=?, status=?,
-        alasan_penolakan=?, link_pendaftaran=?, is_aktif=?, link_grup_wa=COALESCE(?, link_grup_wa), updated_at=CURRENT_TIMESTAMP
+        alasan_penolakan=?, link_pendaftaran=?, is_aktif=?, link_grup_wa=COALESCE(?, link_grup_wa), durasi_program=?, updated_at=CURRENT_TIMESTAMP
        WHERE proposal_id_string=?`,
       [
         mitraNumericId,
@@ -1393,6 +1424,7 @@ app.put('/api/events/:id', async (req, res) => {
         body.latitude !== undefined ? Number(body.latitude) : current.latitude ?? null,
         body.longitude !== undefined ? Number(body.longitude) : current.longitude ?? null,
         String(body.tanggalKegiatan ?? current.tanggalKegiatan).split(' (')[0],
+        body.tanggalBerakhirKegiatan !== undefined ? (body.tanggalBerakhirKegiatan || null) : ((current as any).tanggalBerakhirKegiatan || null),
         body.waktuMulai ?? body.jamMulai ?? current.waktuMulai ?? null,
         body.waktuSelesai ?? body.jamSelesai ?? current.waktuSelesai ?? null,
         body.targetDanKuotaPeserta !== undefined ? Number(body.targetDanKuotaPeserta) : current.targetDanKuotaPeserta,
@@ -1405,6 +1437,7 @@ app.put('/api/events/:id', async (req, res) => {
         body.linkPendaftaran !== undefined ? body.linkPendaftaran : current.linkPendaftaran ?? null,
         body.isAktif !== undefined ? Boolean(body.isAktif) : current.isAktif,
         waLinkPut,
+        durasiProgramPut,
         id
       ]
     );
@@ -2638,6 +2671,78 @@ app.post('/api/bank-soal', async (req, res) => {
       [id, String(user.id), b.eventId || null, tipe, String(b.pertanyaan).trim(), JSON.stringify(pilihan), jawabanBenar]);
     return res.status(201).json({ success: true, id });
   } catch (e) { console.error('[BankSoal POST]', e); return res.status(500).json({ error: 'Gagal menyimpan soal.' }); }
+});
+
+// Impor soal massal (dari file CSV/Excel yang dibaca di browser). Semua baris divalidasi ulang di server;
+// soal yang sama (event + jenis + pertanyaan) dilewati, dan penyimpanan memakai transaksi (semua atau tidak sama sekali).
+app.post('/api/bank-soal/import', async (req, res) => {
+  let conn: any = null;
+  try {
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
+    const b = req.body ?? {};
+    const items: any[] = Array.isArray(b.items) ? b.items : [];
+    if (items.length === 0) return res.status(400).json({ error: 'Tidak ada soal untuk diimpor.' });
+    if (items.length > 500) return res.status(400).json({ error: 'Maksimal 500 soal per impor.' });
+
+    const eventId = b.eventId ? String(b.eventId) : null;
+    const pool = await getPool();
+    if (eventId) {
+      const [ev] = await pool.query('SELECT 1 FROM training_proposals WHERE proposal_id_string = ? LIMIT 1', [eventId]);
+      if (!Array.isArray(ev) || ev.length === 0) return res.status(400).json({ error: 'Event yang dipilih tidak ditemukan.' });
+    }
+
+    const normalize = (v: string) => v.toLowerCase().replace(/\s+/g, ' ').trim();
+    const clean: { tipe: string; pertanyaan: string; pilihan: string[]; jawabanBenar: string }[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i] ?? {};
+      const row = i + 1;
+      const pertanyaan = String(it.pertanyaan ?? '').trim();
+      const pilihan = Array.isArray(it.pilihan) ? it.pilihan.map((x: any) => String(x ?? '').trim()) : [];
+      const jawabanBenar = String(it.jawabanBenar ?? '').trim().toUpperCase();
+      const tipe = ['pretest', 'postest', 'latihan'].includes(it.tipe) ? it.tipe : null;
+      if (!pertanyaan || pertanyaan.length > 2000) return res.status(400).json({ error: `Soal ke-${row}: pertanyaan wajib diisi (maksimal 2000 karakter).` });
+      if (pilihan.length < 2 || pilihan.length > 5 || pilihan.some(p => !p || p.length > 500)) return res.status(400).json({ error: `Soal ke-${row}: pilihan jawaban harus 2 sampai 5 dan tidak boleh kosong.` });
+      if (!/^[A-E]$/.test(jawabanBenar) || jawabanBenar.charCodeAt(0) - 65 >= pilihan.length) return res.status(400).json({ error: `Soal ke-${row}: jawaban benar tidak sesuai dengan pilihan jawaban.` });
+      if (!tipe) return res.status(400).json({ error: `Soal ke-${row}: jenis soal harus pretest, postest, atau latihan.` });
+      clean.push({ tipe, pertanyaan, pilihan, jawabanBenar });
+    }
+
+    // Lewati soal yang sudah ada di database untuk event yang sama, dan duplikat di dalam file.
+    const [existingRows] = eventId
+      ? await pool.query('SELECT tipe, pertanyaan FROM bank_soal WHERE event_id_string = ?', [eventId])
+      : await pool.query("SELECT tipe, pertanyaan FROM bank_soal WHERE event_id_string IS NULL OR event_id_string = ''");
+    const seen = new Set((existingRows as any[]).map(r => `${r.tipe}|${normalize(String(r.pertanyaan ?? ''))}`));
+    const toInsert = clean.filter(it => {
+      const key = `${it.tipe}|${normalize(it.pertanyaan)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    if (toInsert.length > 0) {
+      conn = await pool.getConnection();
+      await conn.beginTransaction();
+      const stamp = Date.now();
+      for (let i = 0; i < toInsert.length; i++) {
+        const it = toInsert[i];
+        const id = `soal_${stamp}_${i}_${Math.random().toString(36).slice(2, 6)}`;
+        await conn.query(
+          'INSERT INTO bank_soal (soal_id_string, mitra_id_string, event_id_string, tipe, pertanyaan, pilihan, jawaban_benar) VALUES (?,?,?,?,?,?,?)',
+          [id, String(user.id), eventId, it.tipe, it.pertanyaan, JSON.stringify(it.pilihan), it.jawabanBenar]
+        );
+      }
+      await conn.commit();
+    }
+
+    await addSystemLog('Pengguna', 'system', 'Import Soal', 'bank_soal', `${toInsert.length} soal diimpor ke bank soal (${clean.length - toInsert.length} dilewati karena sudah ada).`, 'success');
+    return res.status(201).json({ success: true, inserted: toInsert.length, skipped: clean.length - toInsert.length });
+  } catch (e) {
+    if (conn) { try { await conn.rollback(); } catch { /* abaikan */ } }
+    console.error('[BankSoal IMPORT]', e);
+    return res.status(500).json({ error: 'Gagal mengimpor soal.' });
+  } finally {
+    if (conn) conn.release();
+  }
 });
 
 app.delete('/api/bank-soal/:id', async (req, res) => {

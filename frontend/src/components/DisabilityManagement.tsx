@@ -1031,6 +1031,7 @@ export const DisabilityManagement: React.FC<DisabilityManagementProps> = ({
                     <option value="Mental">Mental</option>
                     <option value="Ganda">Ganda</option>
                     <option value="Umum">Umum / Non-Disabilitas</option>
+                    <option value="Lainnya"></option>
                   </select>
                 </div>
               </div>

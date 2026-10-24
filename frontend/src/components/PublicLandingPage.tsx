@@ -976,7 +976,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               : 'text-slate-900'
               }`}
           >
-            Temukan Event dan Pendidikan TPQ <br className="hidden sm:inline" />
+            SISTEM INFORMASI LAYANAN<br className="hidden sm:inline" />
             <span
               className={
                 appSettings?.headerBgImage && appSettings.headerBgOverlay !== 'light'
@@ -984,7 +984,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                   : 'text-slate-900'
               }
             >
-              untuk Semua
+              AL-QUR'AN DISABILITAS
             </span>
           </h1>
 
@@ -995,7 +995,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               : 'text-slate-600'
               }`}
           >
-           Ikuti event dan pelatihan bersama rumah Qur’an, pesantren, dan mitra yayasan di seluruh nusantara. Tersedia juga program pendidikan TPQ khusus bagi sahabat tunanetra dan tunarungu.
+           Platform Yang Menghubungkan Peeserta Dengan Penyelenggara Pembelejaran Al'Qur'an Braille Dan Isyarat. Menyediakan Informasi Peltihan, Pendaftaran, Materi Pembelajaran Serta Integrasi Dan Kegiatan.
           </p>
         </section>
       </div>
@@ -1019,16 +1019,13 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
             <div className="lg:col-span-7">
               <h2 className="text-2xl sm:text-4xl font-extrabold text-[#006316] tracking-tight leading-tight">
-                Membangun Jembatan Peluang Setara Bagi Sahabat Disabilitas
+                SISTEM INFORMASI LAYANAN AL-QUR'AN DISABILITAS
               </h2>
             </div>
 
             <div className="lg:col-span-5 flex flex-col justify-between h-full">
               <p className="text-[14px] sm:text-[15px] text-[#006316] leading-relaxed mb-4">
-                Platform inklusif nasional yang didedikasikan untuk mempertemukan
-                sahabat disabilitas dengan peluang pelatihan kerja, pengembangan
-                kompetensi digital, pemberdayaan komunitas, dan kegiatan Al-Quran
-                inklusif di seluruh Nusantara.
+                Mendorong Pemetaan Akses Pembelajaran AL-Qur'an Yang Inklusif Melalui Kolaborasi, Integrasi Data, Dan Penguatan Ekosistem Pembelajaran Bagi Semua Kalangan.
               </p>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -1071,7 +1068,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               </span>
 
               <span className="text-[13px] font-medium text-slate-600">
-                Ragam Fasilitas Aksesibilitas
+                Ragam Kategori Peserta
               </span>
             </div>
 
@@ -1081,7 +1078,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               </span>
 
               <span className="text-[13px] font-medium text-slate-600">
-                Cakupan Provinsi & Wilayah
+                Cakupan Lokasi Event & Pendidikan
               </span>
             </div>
 
@@ -1102,10 +1099,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               </div>
 
               <p className="text-[14px] text-slate-600 leading-relaxed">
-                Mewujudkan ekosistem Indonesia yang mandiri, berkeadilan, dan ramah
-                disabilitas, di mana setiap individu memiliki kesempatan yang setara
-                untuk belajar, mengasah keterampilan vokasional, menumbuhkan
-                kepemimpinan, dan meraih masa depan yang bermartabat.
+                Mewujudkan ekosistem pembelajaran Al-Qur’an yang inklusif, mudah diakses, dan terintegrasi bagi semua kalangan. 
               </p>
 
             </div>
@@ -1125,9 +1119,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 <li className="flex items-start gap-2.5">
 
                   <span>
-                    <strong>Mempermudah Akses Informasi:</strong>{' '}
-                    Menyediakan katalog kegiatan terpusat dengan filter akomodasi
-                    aksesibilitas yang transparan.
+                    1. Memperluas akses informasi dan jangkauan pembelajaran Al-Qur’an Braille dan Isyarat. 
                   </span>
                 </li>
 
@@ -1135,9 +1127,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
 
                   <span>
-                    <strong>Standarisasi Fasilitas Inklusif:</strong>{' '}
-                    Membimbing mitra dalam mempersiapkan JBI, materi Braille, dan
-                    jalur kursi roda.
+                    2. Menghubungkan peserta dengan mitra, sekolah, dan komunitas penyelenggara pelatihan. 
                   </span>
                 </li>
 
@@ -1145,9 +1135,24 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
 
                   <span>
-                    <strong>Peta Quran Terpadu:</strong>{' '}
-                    Menjembatani sahabat disabilitas dengan rumah tahfidz dan
-                    pengajar Al-Quran inklusif.
+                    3. Mengintegrasikan data dan memetakan persebaran kegiatan pembelajaran Al-Qur’an inklusif. 
+                  </span>
+                </li>
+
+
+                <li className="flex items-start gap-2.5">
+
+
+                  <span>
+                    4. Menyediakan materi, perangkat evaluasi, dan sarana pendukung pembelajaran serta perlombaan Al-Qur’an inklusif. 
+                  </span>
+                </li>
+
+                <li className="flex items-start gap-2.5">
+
+
+                  <span>
+                    5. Mendorong koordinasi dan standardisasi penyelenggaraan kegiatan Al-Qur’an inklusif secara berkelanjutan 
                   </span>
                 </li>
 
@@ -2084,7 +2089,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 </span>
               </div>
               <p className="text-[13px] text-slate-400 leading-relaxed max-w-sm">
-                Menghubungkan Sahabat Netra, Tuli, Daksa, dan neurodivergen dengan mitra pesantren dan yayasan penyelenggara pelatihan di seluruh nusantara.
+                Platform Yang Menghubungkan Peeserta Dengan Penyelenggara Pembelejaran Al'Qur'an Braille Dan Isyarat. Menyediakan Informasi Peltihan, Pendaftaran, Materi Pembelajaran Serta Integrasi Dan Kegiatan.
               </p>
             </div>
 
@@ -2094,11 +2099,11 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 NAVIGASI UTAMA
               </h4>
               <ul className="space-y-2.5 text-[13px] text-slate-400">
+                <li><a href="#tentang-kami" className="hover:text-white transition-colors">Tentang Kami</a></li>
                 <li><a href="#katalog-event" className="hover:text-white transition-colors">Cari Event & Pelatihan</a></li>
-                <li><a href="#program-tpq" className="hover:text-white transition-colors">Program Pendidikan TPQ</a></li>
+                <li><a href="#program-tpq" className="hover:text-white transition-colors">Pendidikan Disabilitas </a></li>
                 <li><a href="#peta-lokasi" className="hover:text-white transition-colors">Peta Persebaran Lokasi</a></li>
-                <li><a href="#peta-lokasi" className="hover:text-white transition-colors">Peta Mitra & Yayasan Quran Disabilitas</a></li>
-                <li><a href="#tentang-kami" className="hover:text-white transition-colors">Tentang Kami & Prinsip Inklusi</a></li>
+                <li><a href="#mitra" className="hover:text-white transition-colors">Mitra & Yayasan Al-Qur'an </a></li>
                 <li><a href="#kontak-kami" className="hover:text-white transition-colors">Kontak & Bantuan Layanan</a></li>
               </ul>
             </div>
@@ -2106,7 +2111,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             {/* Column 2: Aksesibilitas */}
             <div>
               <h4 className="text-[12px] font-bold uppercase tracking-wider text-slate-300 mb-4">
-                Pendidikan Tpq Disabilitas
+                Pendidikan Disabilitas
               </h4>
               <ul className="space-y-2.5 text-[13px] text-slate-400">
                 <li>Al-Qur'an Braille </li>

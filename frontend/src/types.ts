@@ -98,6 +98,7 @@ export interface TrainingProposal {
   latitude: number;
   longitude: number;
   tanggalKegiatan: string;
+  tanggalBerakhirKegiatan?: string;
   targetDanKuotaPeserta: number;
   targetPeserta?: string;
   kategoriDisabilitasUtama?: string;
@@ -107,6 +108,8 @@ export interface TrainingProposal {
   batasPendaftaran?: string;
   benefit?: string;
   persyaratan?: string;
+  /** Lama keseluruhan program, mis. "3 Bulan". */
+  durasiProgram?: string;
   batch?: string;
   kebutuhanPeserta: string[];
   status: 'menunggu_persetujuan' | 'disetujui' | 'ditolak';

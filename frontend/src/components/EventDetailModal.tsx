@@ -75,17 +75,14 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
   const [regNotes, setRegNotes] = useState('');
 
   // Data yang ditampilkan mengikuti field Form Permintaan Event.
-  // Form menyimpan nama lokasi dan alamat menjadi satu string dipisahkan tanda pisah.
-  const locationParts = (event.lokasiDanAlamat || '').split(/\s+[—–-]\s+/);
-  const eventLocation = locationParts.length > 1 ? locationParts[0].trim() : (event.lokasiDanAlamat || '—');
-  const eventAddress = locationParts.length > 1 ? locationParts.slice(1).join(' — ').trim() : '—';
+  // Form menyimpan satu alamat lengkap (data lama: "nama lokasi — alamat").
+  const eventAddress = (event.lokasiDanAlamat || '').replace(/\s+[—–]\s+/g, ', ').trim() || '—';
   const eventDate = (event.tanggalKegiatan || '').split(' (')[0].trim() || '—';
+  const eventEndDate = (event as any).tanggalBerakhirKegiatan || (event as any).tanggal_berakhir_kegiatan || (event as any).tanggalSelesai || (event as any).tanggal_selesai || '';
   const eventStart = event.jamMulai || event.waktuMulai || (event.tanggalKegiatan?.match(/\((\d{1,2}:\d{2})\s*-/)?.[1]) || '—';
   const eventEnd = event.jamSelesai || event.waktuSelesai || (event.tanggalKegiatan?.match(/-\s*(\d{1,2}:\d{2})\)/)?.[1]) || '—';
-  const eventDisability = event.kategoriDisabilitasUtama || event.kategoriDisabilitas || '—';
-  const eventCoordinates = Number.isFinite(Number(event.latitude)) && Number.isFinite(Number(event.longitude))
-    ? `${event.latitude}, ${event.longitude}`
-    : '—';
+  const eventDisabilityRaw = String(event.kategoriDisabilitasUtama || event.kategoriDisabilitas || '').trim();
+  const eventDisability = !eventDisabilityRaw || eventDisabilityRaw.toLowerCase() === 'umum' || eventDisabilityRaw.toLowerCase().includes('non-disabilitas') ? 'Umum / Non-Disabilitas' : eventDisabilityRaw;
 
   const kuotaMax = event.kuotaDisetujui || event.targetDanKuotaPeserta || 30;
   const pendaftar = event.jumlahPendaftar || 0;
@@ -153,12 +150,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
             <div className="flex items-center gap-1.5">
               <Icon name="location_on" className="text-[16px] text-cyan-200" />
               <span className="text-cyan-100">Lokasi:</span>
-              <span className="font-bold text-white">{event.metodeBelajar || 'Self-Paced (Mandiri)'} / {event.kota}</span>
-            </div>
-            <div className="hidden sm:flex items-center gap-1.5">
-              <Icon name="sync_alt" className="text-[16px] text-cyan-200" />
-              <span className="text-cyan-100">Alur Seleksi:</span>
-              <span className="font-bold text-white">{event.alurSeleksi || 'Self Enrolment (Langsung)'}</span>
+              <span className="font-bold text-white">{event.kota || event.provinsi || 'Lokasi belum ditentukan'}</span>
             </div>
           </div>
           <button
@@ -202,10 +194,10 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
 
                 <div className="hidden sm:block text-right">
                   <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-300/40">
-                    Pelatihan Aktif
+                    Pendaftaran Dibuka
                   </span>
                   <div className="text-[11px] text-slate-500 mt-1">
-                    Sisa Kuota: <strong>{sisaKuota}</strong> dari {kuotaMax} santri
+                    Sisa Kuota: <strong>{sisaKuota}</strong> dari {kuotaMax} peserta
                   </div>
                 </div>
               </div>
@@ -229,19 +221,14 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                     {/* Poster Content */}
                     <div className="relative z-10 max-w-md">
                       <span className="inline-block px-3 py-0.5 rounded-md bg-white/20 text-cyan-100 text-[11px] font-bold tracking-wider uppercase mb-2">
-                        {event.jenisEvent}
+                        Pelatihan
                       </span>
                       <h2 className="text-xl sm:text-2xl font-black leading-tight tracking-tight uppercase text-white mb-2">
                         {event.namaKegiatan}
                       </h2>
                       <p className="text-[13px] text-cyan-100 font-medium mb-4 leading-relaxed">
-                        Diselenggarakan oleh <strong className="text-white">{event.mitraOrg || event.mitraName}</strong> untuk sahabat penyandang disabilitas se-Indonesia.
+                        Diselenggarakan oleh Yayasan Tunanetra Indonesia Untuk Seluruh Masyarakat Indonesia.
                       </p>
-
-                      {/* Prominent GRATIS Badge */}
-                      <div className="inline-block px-5 py-2 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white font-black text-[18px] sm:text-[20px] tracking-wider shadow-lg transform -rotate-1 border border-white/20 mb-4">
-                        GRATIS!
-                      </div>
                     </div>
 
                     {/* Decorative Student/Learner Silhouette Visual */}
@@ -303,18 +290,21 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                         <p>{event.deskripsiPelatihan || 'Belum ada deskripsi event.'}</p>
                         <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3 text-[13px]">
                           <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Nama Event</span><strong>{event.namaKegiatan || '—'}</strong></div>
-                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Kategori / Fokus</span><strong>{event.jenisEvent || '—'}</strong></div>
-                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Jenis Disabilitas</span><strong>{eventDisability}</strong></div>
-                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Tanggal Kegiatan</span><strong>{eventDate}</strong></div>
+                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Kategori Kegiatan</span><strong>{event.jenisEvent || '—'}</strong></div>
+                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Kategori Peserta</span><strong>{eventDisability}</strong></div>
+                          {event.fotoDokumentasi?.[0] && <div className="sm:col-span-2"><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-2">Foto Dokumentasi / Sampul Event</span><img src={event.fotoDokumentasi[0]} alt={`Sampul ${event.namaKegiatan}`} className="w-full max-h-64 object-cover rounded-xl border border-slate-200" /></div>}
+                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Durasi Program</span><strong>{event.durasiProgram || '—'}</strong></div>
+                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Tanggal Mulai Kegiatan</span><strong>{formatTanggal(eventDate)}</strong></div>
+                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Tanggal Berakhir Kegiatan</span><strong>{formatTanggal(eventEndDate)}</strong></div>
                           <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Jam Mulai</span><strong>{eventStart} WIB</strong></div>
                           <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Jam Selesai</span><strong>{eventEnd} WIB</strong></div>
-                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Lokasi</span><strong>{eventLocation}</strong></div>
-                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Alamat</span><strong>{eventAddress}</strong></div>
+                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Alamat Lengkap</span><strong>{eventAddress}</strong></div>
                           <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Provinsi</span><strong>{event.provinsi || '—'}</strong></div>
                           <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Kota / Kabupaten</span><strong>{event.kota || '—'}</strong></div>
-                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Koordinat</span><strong>{eventCoordinates}</strong></div>
+                          <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Kuota Peserta</span><strong>{kuotaMax} peserta</strong></div>
                           <div><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Batas Pendaftaran</span><strong>{formatTanggal(event.batasPendaftaran)}</strong></div>
                           {event.benefit && <div className="sm:col-span-2"><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Benefit</span><p className="whitespace-pre-line">{event.benefit}</p></div>}
+                          <div className="sm:col-span-2"><span className="block text-slate-500 text-[11px] font-semibold uppercase mb-1">Persyaratan</span><div className="whitespace-pre-line">{getPersyaratanItems(event.persyaratan).length ? getPersyaratanItems(event.persyaratan).map((item, i) => `${i + 1}. ${item.text}${item.wajib === false ? ' (opsional)' : ''}`).join('\n') : 'Persyaratan belum dicantumkan.'}</div></div>
                         </div>
                       </div>
                     )}
@@ -383,79 +373,6 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                     >
                       DAFTAR SEKARANG
                     </button>
-
-                    {/* Learning Path Section (Exact Stepper from Screenshot 2) */}
-                    <div className="pt-4 border-t border-slate-100">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <Icon name="alt_route" className="text-[18px] text-slate-600" />
-                        <h4 className="text-[13px] font-extrabold text-slate-900">
-                          Learning Path: {event.namaKegiatan}
-                        </h4>
-                      </div>
-                      <p className="text-[11.5px] text-slate-500 leading-snug mb-4">
-                        Peserta wajib mengikuti pelatihan secara berurutan sesuai Learning Path (jalur pembelajaran) yang telah ditentukan.
-                      </p>
-
-                      {/* Stepper Timeline (Level 1, Level 2, Level 3, Level 4) */}
-                      <div className="space-y-4 relative before:absolute before:left-3.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200">
-                        {/* Level 1 */}
-                        <div className="relative flex items-center justify-between pl-9">
-                          <div className="absolute left-0 w-7 h-7 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[12px] font-bold z-10">
-                            1
-                          </div>
-                          <div>
-                            <div className="text-[12.5px] font-bold text-slate-900">Level 1</div>
-                            <div className="text-[11px] text-emerald-600 font-semibold">Sedang Dibuka Pendaftaran</div>
-                          </div>
-                          <span className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer">
-                            Lihat &gt;
-                          </span>
-                        </div>
-
-                        {/* Level 2 */}
-                        <div className="relative flex items-center justify-between pl-9">
-                          <div className="absolute left-0 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-[12px] font-bold z-10 shadow-xs">
-                            2
-                          </div>
-                          <div>
-                            <div className="text-[12.5px] font-bold text-slate-900">Level 2</div>
-                            <div className="text-[11px] text-slate-500">Kaidah Tajwid Terapan</div>
-                          </div>
-                          <span className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer">
-                            Lihat &gt;
-                          </span>
-                        </div>
-
-                        {/* Level 3 */}
-                        <div className="relative flex items-center justify-between pl-9">
-                          <div className="absolute left-0 w-7 h-7 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[12px] font-bold z-10">
-                            3
-                          </div>
-                          <div>
-                            <div className="text-[12.5px] font-bold text-slate-900">Level 3</div>
-                            <div className="text-[11px] text-slate-500">Tahfidz Juz 30 Mandiri</div>
-                          </div>
-                          <span className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer">
-                            Lihat &gt;
-                          </span>
-                        </div>
-
-                        {/* Level 4 */}
-                        <div className="relative flex items-center justify-between pl-9">
-                          <div className="absolute left-0 w-7 h-7 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[12px] font-bold z-10">
-                            4
-                          </div>
-                          <div>
-                            <div className="text-[12.5px] font-bold text-slate-900">Level 4</div>
-                            <div className="text-[11px] text-slate-500">Sertifikasi Pengajar Inklusif</div>
-                          </div>
-                          <span className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer">
-                            Lihat &gt;
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Share Button (Screenshot 2 footer) */}
                     <div className="pt-4 border-t border-slate-100 flex items-center justify-center">
                       <button

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon.tsx';
+import { SubmissionDetailModal, SubmissionSummary, DetailButton, eventToItem, type SubmissionItem } from './SubmissionShared.tsx';
 import { TrainingProposal, User } from '../types.ts';
 import { IndonesiaLocationFields } from './IndonesiaLocationFields.tsx';
 
@@ -56,6 +57,33 @@ interface EventManagementProps {
   onEventDeleted: (deletedEventId: string) => void;
   onOpenCreateModal?: () => void;
 }
+
+// Tanggal berakhir kegiatan dihitung otomatis dari tanggal mulai + durasi program
+// (aturan sama dengan form pengajuan event di Dashboard Mitra).
+const DURASI_SATUAN = ['Jam', 'Hari', 'Minggu', 'Bulan'];
+const hitungTanggalBerakhir = (tanggalMulai: string, jumlah: string, satuan: string) => {
+  if (!tanggalMulai || !Number.isInteger(Number(jumlah)) || Number(jumlah) < 1) return '';
+  const date = new Date(`${tanggalMulai}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  const n = Number(jumlah);
+  if (satuan === 'Minggu') date.setDate(date.getDate() + n * 7 - 1);
+  else if (satuan === 'Bulan') { date.setMonth(date.getMonth() + n); date.setDate(date.getDate() - 1); }
+  else if (satuan === 'Hari') date.setDate(date.getDate() + n - 1);
+  // Durasi dalam jam masih berlangsung pada tanggal yang sama.
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+const bacaDurasi = (ev: { durasiProgram?: string; tanggalKegiatan?: string; tanggalBerakhirKegiatan?: string }) => {
+  const match = String(ev.durasiProgram || '').trim().match(/^(\d+)\s+(Jam|Hari|Minggu|Bulan)$/i);
+  if (match) return { jumlah: match[1], satuan: match[2].charAt(0).toUpperCase() + match[2].slice(1).toLowerCase() };
+  // Event lama tanpa durasi: perkirakan dari selisih tanggal mulai dan berakhir (dalam hari).
+  const start = String(ev.tanggalKegiatan || '').slice(0, 10);
+  const end = String(ev.tanggalBerakhirKegiatan || '').slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(start) && /^\d{4}-\d{2}-\d{2}$/.test(end) && end >= start) {
+    const days = Math.round((new Date(`${end}T12:00:00`).getTime() - new Date(`${start}T12:00:00`).getTime()) / 86400000) + 1;
+    return { jumlah: String(days), satuan: 'Hari' };
+  }
+  return { jumlah: '1', satuan: 'Hari' };
+};
 
 export const EventManagement: React.FC<EventManagementProps> = ({
   currentUser,
@@ -158,6 +186,8 @@ export const EventManagement: React.FC<EventManagementProps> = ({
 
   // Edit modal state
   const [editingEvent, setEditingEvent] = useState<TrainingProposal | null>(null);
+  const [durasiJumlah, setDurasiJumlah] = useState('1');
+  const [durasiSatuan, setDurasiSatuan] = useState('Hari');
   const [editForm, setEditForm] = useState({
     namaKegiatan: '',
     jenisEvent: '',
@@ -191,6 +221,11 @@ export const EventManagement: React.FC<EventManagementProps> = ({
   // Link baru boleh disimpan hanya setelah link lama berhasil dimuat, supaya tidak menimpa dengan kosong.
   const [waLinkStatus, setWaLinkStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
+  // Detail pengajuan (format sama dengan Persetujuan Pengajuan)
+
+  const [detailItem, setDetailItem] = useState<SubmissionItem | null>(null);
+
+
   // Delete modal state
   const [deletingEvent, setDeletingEvent] = useState<TrainingProposal | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -210,6 +245,9 @@ export const EventManagement: React.FC<EventManagementProps> = ({
   });
 
   const handleOpenEdit = (ev: TrainingProposal) => {
+    const durasi = bacaDurasi(ev as any);
+    setDurasiJumlah(durasi.jumlah);
+    setDurasiSatuan(durasi.satuan);
     setEditingEvent(ev);
     setNewPhotoInput('');
     setPhotoUploadError('');
@@ -302,12 +340,19 @@ export const EventManagement: React.FC<EventManagementProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const durasiValid = Number.isInteger(Number(durasiJumlah)) && Number(durasiJumlah) >= 1;
+  const tanggalBerakhirOtomatis = hitungTanggalBerakhir(editForm.tanggalKegiatan, durasiJumlah, durasiSatuan);
+
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEvent) return;
 
     if (!editForm.tanggalKegiatan || !editForm.waktuMulai || !editForm.waktuSelesai) {
-      alert('Tanggal, waktu mulai, dan waktu selesai wajib diisi.');
+      alert('Tanggal mulai, waktu mulai, dan waktu selesai wajib diisi.');
+      return;
+    }
+    if (!durasiValid) {
+      alert('Durasi program wajib diisi dengan angka bulat minimal 1.');
       return;
     }
     if (editForm.waktuSelesai <= editForm.waktuMulai) {
@@ -328,6 +373,8 @@ export const EventManagement: React.FC<EventManagementProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...eventPayload,
+          durasiProgram: `${durasiJumlah} ${durasiSatuan}`,
+          tanggalBerakhirKegiatan: tanggalBerakhirOtomatis || editForm.tanggalKegiatan,
           persyaratan: JSON.stringify(requirementRows.filter((row) => row.text.trim()).map((row) => ({ ...row, text: row.text.trim() }))),
         }),
       });
@@ -539,87 +586,20 @@ export const EventManagement: React.FC<EventManagementProps> = ({
       </div>
 
       {/* Event Cards & Management Table */}
-      <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
+      <div className="space-y-3">
         {filteredEvents.length === 0 ? (
-          <div className="p-12 text-center text-on-surface-variant">
+          <div className="rounded-2xl bg-white border border-slate-200 p-12 text-center text-on-surface-variant">
             <Icon name="event_busy" className="text-[40px] text-outline mb-2" />
             <p className="text-[14px] font-medium">Tidak ada kegiatan pelatihan yang sesuai filter.</p>
           </div>
         ) : (
-          <div className="divide-y divide-outline-variant/20">
+          <div className="space-y-3">
             {filteredEvents.map((ev) => (
-              <div key={ev.id} className="p-5 hover:bg-surface-container-low/40 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-surface-container text-on-surface border border-outline-variant/30">
-                      {eventCategories.find(
-                        (category) =>
-                          category.id ===
-                          (ev as EventWithRelations).eventCategoryId
-                      )?.nama || ev.jenisEvent || 'Tanpa Kategori'}
-                    </span>
-                    {(ev as EventWithRelations).disabilityId && (
-                      <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {disabilityCategories.find(
-                          (disability) =>
-                            disability.id ===
-                            (ev as EventWithRelations).disabilityId
-                        )?.nama || 'Jenis Disabilitas'}
-                      </span>
-                    )}
-                    {ev.status === 'disetujui' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-                        Disetujui & Aktif
-                      </span>
-                    )}
-                    {ev.status === 'menunggu_persetujuan' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-700 border border-amber-500/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                        Menunggu Persetujuan
-                      </span>
-                    )}
-                    {ev.status === 'ditolak' && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-error/10 text-error border border-error/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-error"></span>
-                        Perlu Revisi
-                      </span>
-                    )}
-                    {ev.isAktif && ev.status === 'disetujui' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-700">
-                        <Icon name="visibility" className="text-[12px]" />
-                        Tayang di Peta
-                      </span>
-                    )}
-                  </div>
-
-                  <h3 className="text-[16px] font-semibold text-on-surface leading-snug">
-                    {ev.namaKegiatan}
-                  </h3>
-
-                  <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-[12px] text-on-surface-variant font-medium">
-                    <span className="flex items-center gap-1">
-                      <Icon name="corporate_fare" className="text-[15px]" />
-                      {ev.mitraOrg || ev.mitraName}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Icon name="location_on" className="text-[15px]" />
-                      {ev.kota}, {ev.provinsi}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Icon name="calendar_today" className="text-[15px]" />
-                      {ev.tanggalKegiatan}{ev.waktuMulai || ev.waktuSelesai ? ` • ${ev.waktuMulai || '--:--'} - ${ev.waktuSelesai || '--:--'} WIB` : ''}
-                    </span>
-                    <span className="flex items-center gap-1 text-primary font-semibold">
-                      <Icon name="group" className="text-[15px]" />
-                      {ev.jumlahPendaftar || 0} / {ev.kuotaDisetujui || ev.targetDanKuotaPeserta} Kuota
-                    </span>
-                  </div>
-
-                  <p className="text-[12px] text-on-surface-variant/90 line-clamp-2 leading-relaxed pt-1">
-                    {ev.deskripsiPelatihan}
-                  </p>
-
+              <article key={ev.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <SubmissionSummary item={eventToItem(ev)} />
+                  <div className="mt-3 text-sm font-semibold text-slate-700">{ev.jumlahPendaftar || 0} / {ev.kuotaDisetujui || ev.targetDanKuotaPeserta} Kuota{ev.isAktif && ev.status === 'disetujui' ? ' · Tayang di Peta' : ''}</div>
                   {ev.alasanPenolakan && (
                     <div className="p-2.5 bg-error/5 border border-error/20 rounded-lg text-[12px] text-error flex items-start gap-1.5 mt-2">
                       <Icon name="info" className="text-[16px] mt-0.5" />
@@ -632,7 +612,8 @@ export const EventManagement: React.FC<EventManagementProps> = ({
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex items-center gap-2 self-end lg:self-center shrink-0">
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  <DetailButton kind="event" onClick={() => setDetailItem(eventToItem(ev))} />
                   <button
                     onClick={() => handleOpenEdit(ev)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-[12px] font-semibold transition-colors cursor-pointer border border-outline-variant/30"
@@ -651,11 +632,14 @@ export const EventManagement: React.FC<EventManagementProps> = ({
                     <span>Hapus</span>
                   </button>
                 </div>
-              </div>
+                </div>
+              </article>
             ))}
           </div>
         )}
       </div>
+
+      {detailItem && <SubmissionDetailModal item={detailItem} onClose={() => setDetailItem(null)} />}
 
       {/* EDIT EVENT MODAL */}
       {editingEvent && (
@@ -766,9 +750,33 @@ export const EventManagement: React.FC<EventManagementProps> = ({
                 <h4 className="flex items-center gap-2 text-[13px] font-bold text-slate-800"><Icon name="calendar_month" className="text-[24px] text-emerald-700" />Tanggal & Waktu</h4>
                 <div className="sm:col-span-2 rounded-xl border border-primary/20 bg-primary/5 p-4">
                   <label className="block text-[12px] font-semibold text-on-surface mb-2">
-                    Jadwal Pelaksanaan *
+                    Durasi Program *
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="flex gap-2 mb-4 sm:max-w-sm">
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      value={durasiJumlah}
+                      onChange={(e) => setDurasiJumlah(e.target.value)}
+                      placeholder="Contoh: 3"
+                      className="w-full px-3.5 py-2.5 bg-surface-container-lowest border border-outline-variant/40 rounded-xl text-[13px] text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
+                      aria-label="Jumlah durasi program"
+                    />
+                    <select
+                      value={durasiSatuan}
+                      onChange={(e) => setDurasiSatuan(e.target.value)}
+                      className="w-32 shrink-0 px-3 py-2.5 bg-surface-container-lowest border border-outline-variant/40 rounded-xl text-[13px] text-on-surface focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                      aria-label="Satuan durasi program"
+                    >
+                      {DURASI_SATUAN.map((satuan) => <option key={satuan} value={satuan}>{satuan}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                      <span className="block text-[11px] font-semibold text-on-surface-variant mb-1">Tanggal Mulai Kegiatan *</span>
                     <div className="relative">
                       <Icon name="calendar_month" className="absolute left-3 top-1/2 -translate-y-1/2 text-primary text-[18px] pointer-events-none" />
                       <input
@@ -777,9 +785,27 @@ export const EventManagement: React.FC<EventManagementProps> = ({
                         value={editForm.tanggalKegiatan}
                         onChange={(e) => setEditForm({ ...editForm, tanggalKegiatan: e.target.value })}
                         className="w-full pl-10 pr-3 py-2.5 bg-surface-container-lowest border border-outline-variant/40 rounded-xl text-[13px] text-on-surface focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                        aria-label="Tanggal pelaksanaan"
+                        aria-label="Tanggal mulai kegiatan"
                       />
                     </div>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] font-semibold text-on-surface-variant mb-1">Tanggal Berakhir Kegiatan (otomatis)</span>
+                    <div className="relative">
+                      <Icon name="event_available" className="absolute left-3 top-1/2 -translate-y-1/2 text-primary text-[18px] pointer-events-none" />
+                      <input
+                        type="date"
+                        readOnly
+                        tabIndex={-1}
+                        value={tanggalBerakhirOtomatis}
+                        className="w-full pl-10 pr-3 py-2.5 bg-surface-container-low border border-outline-variant/40 rounded-xl text-[13px] text-on-surface-variant cursor-not-allowed"
+                        aria-label="Tanggal berakhir kegiatan (otomatis sesuai durasi)"
+                        title="Tanggal berakhir kegiatan (otomatis sesuai durasi)"
+                      />
+                    </div>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] font-semibold text-on-surface-variant mb-1">Jam Mulai *</span>
                     <div className="relative">
                       <Icon name="schedule" className="absolute left-3 top-1/2 -translate-y-1/2 text-primary text-[18px] pointer-events-none" />
                       <input
@@ -791,6 +817,9 @@ export const EventManagement: React.FC<EventManagementProps> = ({
                         aria-label="Waktu mulai"
                       />
                     </div>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] font-semibold text-on-surface-variant mb-1">Jam Selesai *</span>
                     <div className="relative">
                       <Icon name="schedule" className="absolute left-3 top-1/2 -translate-y-1/2 text-primary text-[18px] pointer-events-none" />
                       <input
@@ -803,8 +832,9 @@ export const EventManagement: React.FC<EventManagementProps> = ({
                         aria-label="Waktu selesai"
                       />
                     </div>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-on-surface-variant mt-2">Gunakan kalender untuk tanggal dan pemilih jam untuk waktu mulai/selesai.</p>
+                  <p className="text-[11px] text-on-surface-variant mt-2">Tanggal berakhir dihitung otomatis dari tanggal mulai dan durasi program{tanggalBerakhirOtomatis ? ` (sampai ${tanggalBerakhirOtomatis})` : ''}. Durasi dalam jam berlangsung pada hari yang sama.</p>
                 </div>
               </section>
 

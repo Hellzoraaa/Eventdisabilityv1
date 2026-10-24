@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon.tsx';
 import { TPQManagement } from './TPQManagement.tsx';
 import { PersyaratanPicker } from './PersyaratanPicker.tsx';
+import { BenefitPicker } from './BenefitPicker.tsx';
 import { 
   TrainingProposal, 
   Participant, 
@@ -239,14 +240,15 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
   const [deskripsiPelatihan, setDeskripsiPelatihan] = useState('');
   const [fotoDokumentasiEvent, setFotoDokumentasiEvent] = useState<string[]>([]);
   const [fotoEventError, setFotoEventError] = useState('');
-  const [lokasiDanAlamat, setLokasiDanAlamat] = useState('');
   const [provinsi, setProvinsi] = useState(currentUser.province || 'Jawa Barat');
   const [kota, setKota] = useState(currentUser.city || 'Kota Bandung');
   const [koordinat, setKoordinat] = useState('-6.9175, 107.6191');
   const [tanggalKegiatan, setTanggalKegiatan] = useState('');
+  const [tanggalBerakhirKegiatan, setTanggalBerakhirKegiatan] = useState('');
   const [jamMulaiEvent, setJamMulaiEvent] = useState('09:00');
   const [jamSelesaiEvent, setJamSelesaiEvent] = useState('12:00');
-  const [namaLokasiEvent, setNamaLokasiEvent] = useState('');
+  const [durasiJumlah, setDurasiJumlah] = useState('');
+  const [durasiSatuan, setDurasiSatuan] = useState('Hari');
   const [alamatEvent, setAlamatEvent] = useState('');
   const [disabilitasEvent, setDisabilitasEvent] = useState('');
   const [benefitEvent, setBenefitEvent] = useState('');
@@ -274,16 +276,19 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
     setDeskripsiPelatihan(proposal.deskripsiPelatihan);
     setFotoDokumentasiEvent(proposal.fotoDokumentasi || []);
     setFotoEventError('');
-    setLokasiDanAlamat(proposal.lokasiDanAlamat);
     setProvinsi(proposal.provinsi);
     setKota(proposal.kota);
     setKoordinat(`${proposal.latitude}, ${proposal.longitude}`);
     const legacySchedule = String(proposal.tanggalKegiatan || '').match(/^(\d{4}-\d{2}-\d{2})\s*\((\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\)$/);
     setTanggalKegiatan(legacySchedule ? legacySchedule[1] : proposal.tanggalKegiatan);
+    setTanggalBerakhirKegiatan((proposal as any).tanggalBerakhirKegiatan || '');
     setJamMulaiEvent((proposal.waktuMulai || proposal.jamMulai || legacySchedule?.[2] || '09:00').slice(0, 5));
     setJamSelesaiEvent((proposal.waktuSelesai || proposal.jamSelesai || legacySchedule?.[3] || '12:00').slice(0, 5));
-    setNamaLokasiEvent(proposal.lokasiDanAlamat || '');
-    setAlamatEvent('');
+    // Data lama menyimpan "Nama lokasi — alamat"; kini cukup satu alamat lengkap.
+    setAlamatEvent((proposal.lokasiDanAlamat || '').replace(/\s+[—–]\s+/g, ', '));
+    const durasiMatch = String(proposal.durasiProgram || '').trim().match(/^(\d+)\s+(Jam|Hari|Minggu|Bulan)$/i);
+    setDurasiJumlah(durasiMatch ? durasiMatch[1] : '');
+    setDurasiSatuan(durasiMatch ? durasiMatch[2].charAt(0).toUpperCase() + durasiMatch[2].slice(1).toLowerCase() : 'Hari');
     setTargetDanKuotaPeserta(proposal.targetDanKuotaPeserta.toString());
     setKebutuhanPeserta(proposal.kebutuhanPeserta);
     setBenefitEvent(proposal.benefit || '');
@@ -298,12 +303,13 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
     setDeskripsiPelatihan('');
     setFotoDokumentasiEvent([]);
     setFotoEventError('');
-    setLokasiDanAlamat('');
     setKoordinat('-6.9175, 107.6191');
     setTanggalKegiatan('');
+    setTanggalBerakhirKegiatan('');
     setJamMulaiEvent('09:00');
     setJamSelesaiEvent('12:00');
-    setNamaLokasiEvent('');
+    setDurasiJumlah('');
+    setDurasiSatuan('Hari');
     setAlamatEvent('');
     setDisabilitasEvent('');
     setBenefitEvent('');
@@ -341,9 +347,30 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const hitungTanggalBerakhir = (tanggalMulai: string, jumlah: string, satuan: string) => {
+    if (!tanggalMulai || !Number.isInteger(Number(jumlah)) || Number(jumlah) < 1) return '';
+    const date = new Date(`${tanggalMulai}T12:00:00`);
+    if (Number.isNaN(date.getTime())) return '';
+    const n = Number(jumlah);
+    if (satuan === 'Minggu') date.setDate(date.getDate() + n * 7 - 1);
+    else if (satuan === 'Bulan') { date.setMonth(date.getMonth() + n); date.setDate(date.getDate() - 1); }
+    else if (satuan === 'Hari') date.setDate(date.getDate() + n - 1);
+    // Durasi dalam jam masih berlangsung pada tanggal yang sama.
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const durasiValid = Number.isInteger(Number(durasiJumlah)) && Number(durasiJumlah) >= 1;
+  const tanggalAkhirWajib = durasiValid ? hitungTanggalBerakhir(tanggalKegiatan, durasiJumlah, durasiSatuan) : '';
+  const perluTanggalBerakhir = Boolean(tanggalAkhirWajib && tanggalAkhirWajib !== tanggalKegiatan);
+
   const handleSubmitProposal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (jamSelesaiEvent <= jamMulaiEvent) { alert('Jam selesai harus setelah jam mulai.'); return; }
+    if (!Number.isInteger(Number(durasiJumlah)) || Number(durasiJumlah) < 1) { alert('Durasi program wajib diisi dengan angka bulat minimal 1.'); return; }
+    if (!tanggalKegiatan) { alert('Tanggal mulai kegiatan wajib diisi.'); return; }
+    const tanggalAkhirDihitung = hitungTanggalBerakhir(tanggalKegiatan, durasiJumlah, durasiSatuan);
+    if (tanggalAkhirDihitung && tanggalAkhirDihitung !== tanggalKegiatan && (tanggalBerakhirKegiatan && tanggalBerakhirKegiatan !== tanggalAkhirDihitung)) { alert(`Tanggal berakhir harus ${tanggalAkhirDihitung} sesuai durasi ${durasiJumlah} ${durasiSatuan}.`); return; }
+    if (!alamatEvent.trim()) { alert('Alamat lengkap wajib diisi.'); return; }
     if (batasPendaftaranEvent && tanggalKegiatan && batasPendaftaranEvent > tanggalKegiatan) { alert('Batas pendaftaran tidak boleh melewati tanggal kegiatan.'); return; }
     const coordinates = koordinat.trim() ? parseEventCoordinate(koordinat) : { latitude: 0, longitude: 0 };
     if (!coordinates) { alert('Koordinat harus ditulis dengan format Latitude, Longitude. Contoh: -6.9175, 107.6191'); return; }
@@ -363,12 +390,14 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
             disabilityId: disabilitasOptions.find(option => option.nama === disabilitasEvent)?.id ?? null,
             deskripsiPelatihan,
             fotoDokumentasi: fotoDokumentasiEvent,
-            lokasiDanAlamat: `${namaLokasiEvent || lokasiDanAlamat} — ${alamatEvent}`.trim(),
+            lokasiDanAlamat: alamatEvent.trim(),
+            durasiProgram: `${durasiJumlah} ${durasiSatuan}`,
             provinsi,
             kota,
             latitude: coordinates.latitude,
             longitude: coordinates.longitude,
             tanggalKegiatan,
+            tanggalBerakhirKegiatan: tanggalAkhirDihitung,
             waktuMulai: jamMulaiEvent,
             waktuSelesai: jamSelesaiEvent,
             targetDanKuotaPeserta: parseInt(targetDanKuotaPeserta || '50'),
@@ -403,12 +432,14 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
             disabilityId: disabilitasOptions.find(option => option.nama === disabilitasEvent)?.id ?? null,
             deskripsiPelatihan,
             fotoDokumentasi: fotoDokumentasiEvent,
-            lokasiDanAlamat: `${namaLokasiEvent || lokasiDanAlamat} — ${alamatEvent}`.trim(),
+            lokasiDanAlamat: alamatEvent.trim(),
+            durasiProgram: `${durasiJumlah} ${durasiSatuan}`,
             provinsi,
             kota,
             latitude: coordinates.latitude,
             longitude: coordinates.longitude,
             tanggalKegiatan,
+            tanggalBerakhirKegiatan: tanggalAkhirDihitung,
             waktuMulai: jamMulaiEvent,
             waktuSelesai: jamSelesaiEvent,
             targetDanKuotaPeserta: parseInt(targetDanKuotaPeserta || '50'),
@@ -512,13 +543,13 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[13px] font-semibold shadow-sm transition-colors cursor-pointer"
             >
               <Icon name="add_circle" className="text-[18px]" />
-              Daftarkan Event Baru
+              Ajukan Permintaan Pelatihan
             </button>
             <button
               onClick={() => setActiveTab('ajukan_pendidikan')}
               className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[13px] font-semibold shadow-sm transition-colors cursor-pointer"
             >
-              <Icon name="add_circle" className="text-[18px]" />
+              <Icon name="menu_book" className="text-[18px]" />
               Daftarkan Pendidikan Baru
             </button>
           </div>
@@ -559,7 +590,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
           }`}
         >
-         Semua Event ({myProposals.length})
+          Status Permintaan ({myProposals.length})
         </button>
         <button
           onClick={() => {
@@ -675,7 +706,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                       </div>
                       <div>
                         <span className="text-outline block font-medium mb-0.5">Lokasi:</span>
-                        <span className="font-semibold text-on-surface">{prop.lokasiDanAlamat}</span>
+                        <span className="font-semibold text-on-surface">{(prop.lokasiDanAlamat || '').replace(/\s+[—–]\s+/g, ', ')}</span>
                       </div>
                       <div>
                         <span className="text-outline block font-medium mb-0.5">Target & Kuota:</span>
@@ -736,7 +767,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
 
                             <a
                               href={`https://wa.me/?text=${encodeURIComponent(
-                                `Assalamu'alaikum Warahmatullahi Wabarakatuh.\n\nTelah dibuka pendaftaran pelatihan Al-Quran Disabilitas: *${prop.namaKegiatan}*.\n\n🗓️ Tanggal: ${prop.tanggalKegiatan}\n📍 Lokasi: ${prop.lokasiDanAlamat}\n👥 Kuota: ${kuotaMax} peserta\n\nSilakan klik tautan resmi untuk mendaftar:\n${prop.linkPendaftaran || window.location.origin + '/#daftar/' + prop.id}`
+                                `Assalamu'alaikum Warahmatullahi Wabarakatuh.\n\nTelah dibuka pendaftaran pelatihan Al-Quran Disabilitas: *${prop.namaKegiatan}*.\n\n🗓️ Tanggal: ${prop.tanggalKegiatan}\n📍 Alamat: ${prop.lokasiDanAlamat}\n👥 Kuota: ${kuotaMax} peserta\n\nSilakan klik tautan resmi untuk mendaftar:\n${prop.linkPendaftaran || window.location.origin + '/#daftar/' + prop.id}`
                               )}`}
                               target="_blank"
                               rel="noreferrer"
@@ -815,11 +846,12 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                 )}
                 {fotoEventError && <small className="text-red-600" role="alert">{fotoEventError}</small>}
               </div>
-              <div className="request-field"><label>Tanggal Kegiatan *</label><input required type="date" value={tanggalKegiatan} onChange={e=>setTanggalKegiatan(e.target.value)} /></div>
+              <div className="request-field request-full"><label>Durasi Program *</label><div className="flex gap-2"><input required type="number" min={1} step={1} inputMode="numeric" value={durasiJumlah} onChange={e=>{setDurasiJumlah(e.target.value); setTanggalBerakhirKegiatan('');}} placeholder="Contoh: 3" /><select className="!w-32 shrink-0" value={durasiSatuan} onChange={e=>{setDurasiSatuan(e.target.value); setTanggalBerakhirKegiatan('');}}><option value="Jam">Jam</option><option value="Hari">Hari</option><option value="Minggu">Minggu</option><option value="Bulan">Bulan</option></select></div><small>Pilih durasi terlebih dahulu. Tanggal akhir akan mengikuti durasi yang dipilih.</small></div>
+              <div className="request-field"><label>Tanggal Mulai Kegiatan *</label><input required type="date" disabled={!durasiValid} value={tanggalKegiatan} onChange={e=>{setTanggalKegiatan(e.target.value); setTanggalBerakhirKegiatan('');}} /><small>{!durasiValid ? 'Isi durasi program terlebih dahulu.' : 'Tanggal mulai kegiatan.'}</small></div>
+              {perluTanggalBerakhir && <div className="request-field"><label>Tanggal Berakhir Kegiatan *</label><input required type="date" min={tanggalAkhirWajib} max={tanggalAkhirWajib} value={tanggalBerakhirKegiatan || tanggalAkhirWajib} onChange={e=>setTanggalBerakhirKegiatan(e.target.value)} /><small>Harus sesuai durasi: {durasiJumlah} {durasiSatuan}, sampai {tanggalAkhirWajib}.</small></div>}
               <div className="request-field"><label>Jam Mulai *</label><input required type="time" value={jamMulaiEvent} onChange={e=>setJamMulaiEvent(e.target.value)} /></div>
               <div className="request-field"><label>Jam Selesai *</label><input required type="time" value={jamSelesaiEvent} onChange={e=>setJamSelesaiEvent(e.target.value)} /></div>
-              <div className="request-field"><label>Lokasi *</label><input required value={namaLokasiEvent} onChange={e=>setNamaLokasiEvent(e.target.value)} placeholder="Nama tempat" /></div>
-              <div className="request-field"><label>Alamat *</label><input required value={alamatEvent} onChange={e=>setAlamatEvent(e.target.value)} placeholder="Alamat lengkap" /></div>
+              <div className="request-field request-full"><label>Alamat Lengkap *</label><input required value={alamatEvent} onChange={e=>setAlamatEvent(e.target.value)} placeholder="Nama tempat, jalan, nomor, desa/kelurahan, kecamatan" /></div>
               <IndonesiaLocationFields
                 province={provinsi}
                 city={kota}
@@ -835,7 +867,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               />
               <div className="request-field"><label>Kuota Peserta *</label><input required type="number" min={1} value={targetDanKuotaPeserta} onChange={e=>setTargetDanKuotaPeserta(e.target.value)} placeholder="Contoh: 50" /></div>
               <div className="request-field"><label>Link Grup WhatsApp (WAG)</label><input type="url" value={linkGrupWaEvent} onChange={e=>setLinkGrupWaEvent(e.target.value)} placeholder="https://chat.whatsapp.com/..." /><small>Dikirim ke peserta setelah berhasil mendaftar.</small></div>
-              <div className="request-field request-full"><label>Benefit</label><textarea value={benefitEvent} onChange={e=>setBenefitEvent(e.target.value)} placeholder="Benefit bagi peserta" /></div>
+              <BenefitPicker value={benefitEvent} onChange={setBenefitEvent} />
               <div className="request-field"><label>Batas Pendaftaran *</label><input required type="date" value={batasPendaftaranEvent} onChange={e=>setBatasPendaftaranEvent(e.target.value)} /></div>
             </div>
             <div className="flex items-center justify-end gap-3 pt-5 border-t border-outline-variant/30"><button type="button" onClick={()=>{handleResetForm();setActiveTab('daftar')}} className="px-5 py-2.5 rounded-xl font-semibold hover:bg-surface-container">Batal</button><button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-semibold disabled:opacity-50">{isSubmitting?'Mengirim Permintaan...':editingProposalId?'Kirim Revisi Permintaan Ulang':'Kirim'}</button></div>

@@ -276,13 +276,14 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
 
   /* ---------- Data turunan ---------- */
   const organizer = event.mitraOrg || event.mitraName || 'Yayasan Mitra';
-  const locationParts = (event.lokasiDanAlamat || '').split(/\s+[—–-]\s+/);
-  const eventLocation = locationParts.length > 1 ? locationParts[0].trim() : (event.lokasiDanAlamat || '—');
-  const eventAddress = locationParts.length > 1 ? locationParts.slice(1).join(' — ').trim() : '—';
+  // Hanya alamat lengkap yang dipakai. Data lama berformat "Nama lokasi — alamat" digabung dengan koma.
+  const eventAddress = (event.lokasiDanAlamat || '').replace(/\s+[—–]\s+/g, ', ').trim() || '—';
   const eventDate = (event.tanggalKegiatan || '').split(' (')[0].trim();
+  const eventEndDate = (event as any).tanggalBerakhirKegiatan || (event as any).tanggal_berakhir_kegiatan || (event as any).tanggalSelesai || (event as any).tanggal_selesai || '';
   const eventStart = event.jamMulai || event.waktuMulai || event.tanggalKegiatan?.match(/\((\d{1,2}:\d{2})\s*-/)?.[1] || '';
   const eventEnd = event.jamSelesai || event.waktuSelesai || event.tanggalKegiatan?.match(/-\s*(\d{1,2}:\d{2})\)/)?.[1] || '';
-  const eventDisability = event.kategoriDisabilitasUtama || event.kategoriDisabilitas || '—';
+  const eventDisabilityRaw = String(event.kategoriDisabilitasUtama || event.kategoriDisabilitas || '').trim();
+  const eventDisability = !eventDisabilityRaw || eventDisabilityRaw.toLowerCase() === 'umum' || eventDisabilityRaw.toLowerCase().includes('non-disabilitas') ? 'Umum / Non-Disabilitas' : eventDisabilityRaw;
   const hasCoordinates =
     Number.isFinite(Number(event.latitude)) && Number.isFinite(Number(event.longitude)) &&
     !(Number(event.latitude) === 0 && Number(event.longitude) === 0);
@@ -569,10 +570,13 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
 
   /* ---------- Halaman detail ---------- */
   const facts: { icon: string; label: string; value: string; sub?: string }[] = [
-    { icon: 'calendar_month', label: 'Tanggal', value: formatTanggal(eventDate) },
-    { icon: 'schedule', label: 'Waktu', value: eventStart ? `${eventStart}${eventEnd ? ` – ${eventEnd}` : ''} WIB` : '—' },
-    { icon: 'location_on', label: 'Lokasi', value: eventLocation, sub: [event.kota, event.provinsi].filter(Boolean).join(', ') },
-    { icon: 'group', label: 'Kuota', value: `${pendaftar} / ${kuotaMax} peserta`, sub: isFull ? 'Kuota penuh' : `Sisa ${sisaKuota} kursi` },
+    { icon: 'hourglass_top', label: 'Durasi Program', value: event.durasiProgram || '—' },
+    { icon: 'calendar_month', label: 'Tanggal Mulai Kegiatan', value: formatTanggal(eventDate) },
+    { icon: 'event_available', label: 'Tanggal Berakhir Kegiatan', value: formatTanggal(eventEndDate) },
+    { icon: 'schedule', label: 'Jam Mulai', value: eventStart ? `${eventStart} WIB` : '—' },
+    { icon: 'schedule', label: 'Jam Selesai', value: eventEnd ? `${eventEnd} WIB` : '—' },
+    { icon: 'location_on', label: 'Alamat Lengkap', value: eventAddress, sub: [event.kota, event.provinsi].filter(Boolean).join(', ') },
+    { icon: 'group', label: 'Kuota Peserta', value: `${pendaftar} / ${kuotaMax} peserta`, sub: isFull ? 'Kuota penuh' : `Sisa ${sisaKuota} kursi` },
   ];
 
   return (
@@ -585,10 +589,8 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
         {/* Judul halaman */}
         <header className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-3 py-1 rounded-md bg-cyan-50 text-[#005a71] text-[11px] font-bold border border-cyan-100">{event.jenisEvent || 'Event'}</span>
-            {eventDisability !== '—' && (
-              <span className="px-3 py-1 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-100">{eventDisability}</span>
-            )}
+            <span className="px-3 py-1 rounded-md bg-cyan-50 text-[#005a71] text-[11px] font-bold border border-cyan-100">Pelatihan</span>
+            <span className="px-3 py-1 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-100">{eventDisability !== '—' ? eventDisability : 'Umum / Non-Disabilitas'}</span>
             <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${isFull ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>
               {isFull ? 'Kuota Penuh' : 'Pendaftaran Dibuka'}
             </span>
@@ -634,9 +636,9 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
               <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/55 to-slate-950/10" aria-hidden="true" />
               <div className="relative z-10 flex min-h-[250px] sm:min-h-[300px] items-end p-6 sm:p-8">
                 <div className="max-w-md">
-                  <span className="inline-block px-3 py-0.5 rounded-md bg-white/20 text-white text-[11px] font-bold tracking-wider uppercase mb-2">{event.jenisEvent || 'Event'}</span>
+                  <span className="inline-block px-3 py-0.5 rounded-md bg-white/20 text-white text-[11px] font-bold tracking-wider uppercase mb-2">Pelatihan</span>
                   <h2 className="text-xl sm:text-2xl font-black leading-tight tracking-tight uppercase text-white mb-2">{event.namaKegiatan}</h2>
-                  <p className="text-[13px] text-white font-medium mb-4 leading-relaxed">Diselenggarakan oleh <strong>{organizer}</strong> untuk sahabat penyandang disabilitas se-Indonesia.</p>
+                  <p className="text-[13px] text-white font-medium mb-4 leading-relaxed">Diselenggarakan oleh Yayasan Tunanetra Indonesia Untuk Seluruh Masyarakat Indonesia.</p>
                 </div>
               </div>
             </div>
@@ -645,7 +647,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
               <div className="flex items-center justify-between mb-2.5">
                 <h2 className="text-[12px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                   <Icon name="photo_library" className="text-[16px] text-[#005a71]" />
-                  Foto Failitas Kegiatan
+                  Foto Dokumentasi / Sampul Event
                 </h2>
                 {photos.length > 0 && <span className="text-[11px] font-bold text-[#005a71] bg-cyan-50 px-2 py-0.5 rounded">{photos.length} Foto</span>}
               </div>
@@ -666,6 +668,42 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
               ) : (
                 <div className="p-4 bg-white rounded-xl border border-slate-200 text-center">
                   <p className="text-[12px] text-slate-500">Dokumentasi foto kegiatan akan diunggah oleh mitra penyelenggara.</p>
+                </div>
+              )}
+            </section>
+
+            <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5">
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-900">Tentang Event</h2>
+                <p className="mt-2 text-[13.5px] leading-6 text-slate-700 whitespace-pre-line">{event.deskripsiPelatihan || 'Deskripsi kegiatan belum ditambahkan oleh penyelenggara.'}</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  ['Nama Event', event.namaKegiatan],
+                  ['Kategori Kegiatan', event.jenisEvent],
+                  ['Kategori Peserta', eventDisability !== '—' ? eventDisability : 'Umum / Non-Disabilitas'],
+                  ['Durasi Program', event.durasiProgram],
+                  ['Tanggal Mulai Kegiatan', formatTanggal(eventDate)],
+                  ['Tanggal Berakhir Kegiatan', formatTanggal(eventEndDate)],
+                  ['Jam Mulai', eventStart ? `${eventStart} WIB` : '—'],
+                  ['Jam Selesai', eventEnd ? `${eventEnd} WIB` : '—'],
+                  ['Alamat Lengkap', eventAddress],
+                  ['Provinsi', event.provinsi],
+                  ['Kota / Kabupaten', event.kota],
+                  ['Kuota Peserta', `${kuotaMax} peserta`],
+                  ['Batas Pendaftaran', formatTanggal(event.batasPendaftaran)],
+                  ['Benefit', event.benefit],
+                ].filter(([, value]) => value && String(value).trim()).map(([label, value]) => (
+                  <div key={String(label)} className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                    <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{label}</div>
+                    <div className="mt-1 text-[13px] text-slate-800 whitespace-pre-line break-words">{value}</div>
+                  </div>
+                ))}
+              </div>
+              {requirements.length > 0 && (
+                <div>
+                  <h3 className="text-[13px] font-bold text-slate-900 mb-2">Persyaratan Peserta</h3>
+                  <ul className="space-y-2">{requirements.map((item, index) => <li key={`${index}-${item.text}`} className="flex gap-2 text-[13px] text-slate-700"><Icon name="check_circle" className="text-[17px] text-emerald-600 shrink-0" /><span className="whitespace-pre-line">{item.text}</span></li>)}</ul>
                 </div>
               )}
             </section>
@@ -700,7 +738,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
               >
                 {isFull ? 'KUOTA PENUH' : 'DAFTAR SEKARANG'}
               </button>
-              <p className="text-[11.5px] text-slate-500 text-center -mt-2">Gratis. Setelah mendaftar, Anda akan mendapat tautan grup WhatsApp event.</p>
+              
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-center">
                 <button type="button" onClick={handleShare} className="inline-flex items-center gap-1.5 text-[12px] font-bold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer">

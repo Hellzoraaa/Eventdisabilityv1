@@ -207,7 +207,6 @@ export function createInitialDatabase(): MockDatabase {
         nama: 'Kategori Umum / Non-Disabilitas',
         kategori_utama: 'Umum',
         deskripsi: 'Peserta umum, masyarakat luas, relawan pendamping, ustadz/guru, dan pegiat Al-Quran.',
-        metode_pembelajaran: 'Tatap muka reguler, pengantar inklusi, pembelajaran interaktif, dan tahsin/tahfidz umum.',
         fasilitas_rekomendasi: '["Mushaf Standar", "Buku Panduan / Modul", "Sertifikat Pelatihan", "Materi Edukasi Inklusi"]',
         warna_hex: '#0284c7',
         icon: 'group',

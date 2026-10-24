@@ -23,6 +23,9 @@ export async function getDbPool(): Promise<any> {
       queueLimit: 0,
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
+      // Kolom DATE dikembalikan sebagai teks 'YYYY-MM-DD'. Tanpa ini mysql2 membuat objek Date di zona waktu server (WIB),
+      // lalu saat diubah ke UTC tanggalnya mundur satu hari (23 Okt tampil 22 Okt).
+      dateStrings: ['DATE'],
     });
 
     // Test the connection

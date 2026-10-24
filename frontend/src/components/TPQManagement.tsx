@@ -5,6 +5,7 @@ import { IndonesiaLocationFields } from './IndonesiaLocationFields.tsx';
 import { PersyaratanPicker } from './PersyaratanPicker.tsx';
 import { PERSYARATAN_DEFAULT } from '../utils/persyaratanTemplate.ts';
 import { TPQRegistrations } from './TPQRegistrations.tsx';
+import { SubmissionDetailModal, SubmissionSummary, DetailButton, tpqToItem, type SubmissionItem } from './SubmissionShared.tsx';
 import { JENIS_PESERTA_OPTIONS, getKategoriOptions, findKategori, TPQ_MENU } from './TpqNavMenu.tsx';
 
 interface TPQManagementProps {
@@ -18,7 +19,7 @@ interface TPQManagementProps {
   onRequestNewProgram?: () => void;
 }
 
-export const JENIS_PENDIDIKAN_OPTIONS = ['TPQ', 'Madrasah Diniyah', 'Pondok Pesantren', 'SLB', 'Majelis Taklim', 'Lembaga Kursus', 'Lainnya'];
+export const JENIS_PENDIDIKAN_OPTIONS = ['TPQ', 'Madrasah Diniyah', 'Pondok Pesantren', 'SLB', "Majelis Ta'lim", 'Lembaga Kursus', 'Lainnya'];
 
 const EMPTY_FORM = {
   namaProgram: '',
@@ -98,6 +99,8 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
   const [photoError, setPhotoError] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // Detail pengajuan (format sama dengan Persetujuan Pengajuan)
+  const [detailItem, setDetailItem] = useState<SubmissionItem | null>(null);
 
   const loadPrograms = async () => {
     setIsLoading(true);
@@ -307,7 +310,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
 
       <div className="flex items-center gap-2 border-b border-outline-variant/30 pb-3 overflow-x-auto">
         <button onClick={() => setActiveTab('daftar')} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'daftar' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{currentUser.role === 'superadmin' ? 'Semua Pendidikan' : 'Pendidikan Saya'} ({programs.length})</button>
-        {(!isMitra || editingId) && <button onClick={() => (editingId ? setActiveTab('ajukan') : openNewProgramForm())} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'ajukan' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{editingId ? 'Perbaiki Pengajuan' : 'Form Pengajuan Pendidikan'}</button>}
+        {(!isMitra || editingId) && <button onClick={() => (editingId ? setActiveTab('ajukan') : openNewProgramForm())} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'ajukan' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>{editingId ? 'Perbaiki Pengajuan' : 'Form Pendidikan Baru'}</button>}
         {!isMitra && <button onClick={() => setActiveTab('peserta')} className={`px-4 py-2 text-[13px] font-semibold rounded-full whitespace-nowrap ${activeTab === 'peserta' ? 'bg-on-surface text-surface' : 'text-on-surface-variant hover:bg-surface-container'}`}>Data Peserta Pendidikan</button>}
       </div>
 
@@ -326,27 +329,18 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
               <button onClick={openNewProgramForm} className="px-5 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold">Ajukan Program</button>
             </div>
           ) : programs.map(program => (
-            <div key={program.id} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-5 md:p-6 shadow-sm">
+            <article key={program.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
               <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                <div>
-                  <span className="inline-flex px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold uppercase tracking-wide">TPQ {program.jenisTPQ === 'isyarat' ? 'Al-Qur’an Isyarat' : 'Al-Qur’an Braille'}</span>
-                  <h3 className="text-[18px] font-semibold text-on-surface mt-2">{program.namaProgram}</h3>
-                  <p className="text-[13px] text-on-surface-variant mt-1 line-clamp-2">{program.deskripsiProgram}</p>
-                </div>
-                <div className="flex flex-wrap gap-2">{currentUser.role === 'superadmin' && program.status === 'menunggu_persetujuan' && <button onClick={async()=>{try{const r=await fetch(`/api/tpq/${encodeURIComponent(program.id)}/approve`,{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Gagal menyetujui program.');setSuccess('Program TPQ disetujui. Selanjutnya klik Izinkan Publikasi di Web agar tampil di homepage.');await loadPrograms();}catch(e){setError(e instanceof Error?e.message:'Gagal menyetujui program.')}}} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[12px] font-semibold hover:bg-emerald-700">Setujui</button>}{currentUser.role === 'superadmin' && program.status === 'menunggu_persetujuan' && <button onClick={async()=>{const reason=window.prompt('Tuliskan alasan penolakan atau data yang perlu direvisi Mitra:');if(!reason || !reason.trim())return;try{const r=await fetch(`/api/tpq/${encodeURIComponent(program.id)}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({alasanPenolakan:reason.trim()})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Gagal meminta revisi.');setSuccess('Pengajuan dikembalikan untuk revisi Mitra.');await loadPrograms();}catch(e){setError(e instanceof Error?e.message:'Gagal meminta revisi.')}}} className="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-[12px] font-semibold hover:bg-amber-100">Tolak / Minta Revisi</button>}{currentUser.role === 'superadmin' && program.status === 'disetujui' && <button onClick={async()=>{try{const allow=!Boolean(program.izinkanPublikasi);const r=await fetch(`/api/tpq/${encodeURIComponent(program.id)}/publish`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({izinkanPublikasi:allow})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Gagal mengubah publikasi.');setSuccess(allow?'Publikasi diizinkan. Program akan tampil di homepage.':'Publikasi dinonaktifkan. Program tidak lagi tampil di homepage.');await loadPrograms();}catch(e){setError(e instanceof Error?e.message:'Gagal mengubah publikasi.')}}} className={`px-4 py-2 rounded-xl text-[12px] font-semibold ${program.izinkanPublikasi?'bg-amber-100 text-amber-800 border border-amber-200':'bg-blue-600 text-white hover:bg-blue-700'}`}>{program.izinkanPublikasi?'Cabut Publikasi':'Izinkan Publikasi di Web'}</button>}<button onClick={() => startEdit(program)} className="px-4 py-2 rounded-xl border border-outline-variant/40 text-[12px] font-semibold hover:bg-surface-container">{currentUser.role === 'superadmin' ? 'Edit' : 'Perbaiki Data'}</button><button onClick={() => void deleteProgram(program)} className="px-4 py-2 rounded-xl border border-red-200 text-red-700 text-[12px] font-semibold hover:bg-red-50">Hapus</button></div>
+                <SubmissionSummary item={tpqToItem(program)} />
+                <div className="flex flex-wrap gap-2 shrink-0"><DetailButton kind="tpq" onClick={() => setDetailItem(tpqToItem(program))} />{currentUser.role === 'superadmin' && program.status === 'menunggu_persetujuan' && <button onClick={async()=>{try{const r=await fetch(`/api/tpq/${encodeURIComponent(program.id)}/approve`,{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Gagal menyetujui program.');setSuccess('Program TPQ disetujui. Selanjutnya klik Izinkan Publikasi di Web agar tampil di homepage.');await loadPrograms();}catch(e){setError(e instanceof Error?e.message:'Gagal menyetujui program.')}}} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[12px] font-semibold hover:bg-emerald-700">Setujui</button>}{currentUser.role === 'superadmin' && program.status === 'menunggu_persetujuan' && <button onClick={async()=>{const reason=window.prompt('Tuliskan alasan penolakan atau data yang perlu direvisi Mitra:');if(!reason || !reason.trim())return;try{const r=await fetch(`/api/tpq/${encodeURIComponent(program.id)}/reject`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({alasanPenolakan:reason.trim()})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Gagal meminta revisi.');setSuccess('Pengajuan dikembalikan untuk revisi Mitra.');await loadPrograms();}catch(e){setError(e instanceof Error?e.message:'Gagal meminta revisi.')}}} className="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-[12px] font-semibold hover:bg-amber-100">Tolak / Minta Revisi</button>}{currentUser.role === 'superadmin' && program.status === 'disetujui' && <button onClick={async()=>{try{const allow=!Boolean(program.izinkanPublikasi);const r=await fetch(`/api/tpq/${encodeURIComponent(program.id)}/publish`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({izinkanPublikasi:allow})});const d=await r.json();if(!r.ok)throw new Error(d.error||'Gagal mengubah publikasi.');setSuccess(allow?'Publikasi diizinkan. Program akan tampil di homepage.':'Publikasi dinonaktifkan. Program tidak lagi tampil di homepage.');await loadPrograms();}catch(e){setError(e instanceof Error?e.message:'Gagal mengubah publikasi.')}}} className={`px-4 py-2 rounded-xl text-[12px] font-semibold ${program.izinkanPublikasi?'bg-amber-100 text-amber-800 border border-amber-200':'bg-blue-600 text-white hover:bg-blue-700'}`}>{program.izinkanPublikasi?'Cabut Publikasi':'Izinkan Publikasi di Web'}</button>}<button onClick={() => startEdit(program)} className="px-4 py-2 rounded-xl border border-outline-variant/40 text-[12px] font-semibold hover:bg-surface-container">{currentUser.role === 'superadmin' ? 'Edit' : 'Perbaiki Data'}</button><button onClick={() => void deleteProgram(program)} className="px-4 py-2 rounded-xl border border-red-200 text-red-700 text-[12px] font-semibold hover:bg-red-50">Hapus</button></div>
               </div>
               {program.status === 'ditolak' && program.alasanPenolakan && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3"><div className="text-[11px] font-bold uppercase text-amber-900">Catatan revisi dari Super Admin</div><p className="mt-1 text-[13px] text-amber-900 whitespace-pre-line">{program.alasanPenolakan}</p>{currentUser.role !== 'superadmin' && <p className="mt-2 text-[12px] text-amber-800">Silakan klik <strong>Perbaiki Data</strong>, sesuaikan data berdasarkan catatan, lalu kirim revisi untuk ditinjau ulang.</p>}</div>}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
-                <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Status</div><div className="text-[12px] font-semibold mt-1">{program.status.replaceAll('_', ' ')}</div></div>{currentUser.role === 'superadmin' && <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Publikasi Web</div><div className="text-[12px] font-semibold mt-1">{program.izinkanPublikasi ? 'Diizinkan' : 'Belum diizinkan'}</div></div>}
-                <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Pertemuan</div><div className="text-[12px] font-semibold mt-1">{program.frekuensiPertemuan || '-'}</div></div>
-                <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Jenis Pendidikan</div><div className="text-[12px] font-semibold mt-1">{(() => { const raw = String(program.tujuanPembelajaran || ""); try { return raw.startsWith("TPQ_META:") ? (JSON.parse(raw.slice(9)).jenisPendidikan || "TPQ") : "TPQ"; } catch { return "TPQ"; } })()}</div></div>
-                <div className="p-3 rounded-xl bg-surface-container-low"><div className="text-[10px] text-outline font-semibold uppercase">Kuota</div><div className="text-[12px] font-semibold mt-1">{program.kuotaPeserta} peserta</div></div>
-              </div>
-              {(program as any).fotoDokumentasi?.length > 0 && <div className="mt-4 flex flex-wrap gap-3">{(program as any).fotoDokumentasi.map((photo: string, i: number) => <a key={i} href={photo} target="_blank" rel="noreferrer"><img src={photo} alt={`Fasilitas ${i+1}`} className="w-24 h-20 object-cover rounded-lg border" /></a>)}</div>}
-            </div>
+            </article>
           ))}
         </div>
       )}
+
+      {detailItem && <SubmissionDetailModal item={detailItem} onClose={() => setDetailItem(null)} />}
 
       {activeTab === 'peserta' && (
         <div className="space-y-4">

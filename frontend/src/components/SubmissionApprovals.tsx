@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TrainingProposal, TPQProgram, User } from '../types.ts';
+import { SubmissionDetailModal, SubmissionSummary, DetailButton, eventToItem, tpqToItem } from './SubmissionShared.tsx';
 
 type Kind = 'semua' | 'event' | 'tpq';
 type Status = 'semua' | 'menunggu_persetujuan' | 'disetujui' | 'ditolak';
 
-const statusLabel = (status: string) => status === 'disetujui' ? 'Disetujui' : status === 'ditolak' ? 'Ditolak' : 'Menunggu Persetujuan';
-const dateLabel = (value?: string | null) => value ? new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 export const SubmissionApprovals: React.FC<{ currentUser: User }> = ({ currentUser }) => {
   const [events, setEvents] = useState<TrainingProposal[]>([]);
@@ -17,6 +16,7 @@ export const SubmissionApprovals: React.FC<{ currentUser: User }> = ({ currentUs
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [detailItem, setDetailItem] = useState<any>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -34,8 +34,8 @@ export const SubmissionApprovals: React.FC<{ currentUser: User }> = ({ currentUs
 
   const items = useMemo(() => {
     const all = [
-      ...events.map(e => ({ id: e.id, kind: 'event' as const, title: e.namaKegiatan, org: e.mitraOrg || e.mitraName || 'Mitra', city: `${e.kota || ''}${e.provinsi ? `, ${e.provinsi}` : ''}`, date: e.tanggalKegiatan, status: e.status, description: e.deskripsiPelatihan, raw: e })),
-      ...programs.map(p => ({ id: p.id, kind: 'tpq' as const, title: p.namaProgram, org: p.mitraOrg || p.mitraName || 'Mitra', city: `${p.kota || ''}${p.provinsi ? `, ${p.provinsi}` : ''}`, date: p.tanggalMulai, status: p.status, description: p.deskripsiProgram, raw: p })),
+      ...events.map(eventToItem),
+      ...programs.map(tpqToItem),
     ];
     const q = search.trim().toLowerCase();
     return all.filter(x => (kind === 'semua' || x.kind === kind) && (status === 'semua' || x.status === status) && (!q || `${x.title} ${x.org} ${x.city}`.toLowerCase().includes(q))).sort((a,b) => (a.status === 'menunggu_persetujuan' ? 0 : 1) - (b.status === 'menunggu_persetujuan' ? 0 : 1));
@@ -80,15 +80,16 @@ export const SubmissionApprovals: React.FC<{ currentUser: User }> = ({ currentUs
     {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
     <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col lg:flex-row gap-3">
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari nama pengajuan, mitra, atau kota…" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-sky-200" />
-      <select value={kind} onChange={e => setKind(e.target.value as Kind)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"><option value="semua">Semua kategori</option><option value="event">Event / Program</option><option value="tpq">Pendidikan TPQ</option></select>
+      <select value={kind} onChange={e => setKind(e.target.value as Kind)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"><option value="semua">Semua kategori</option><option value="event">Event</option><option value="tpq">Pendidikan</option></select>
       <select value={status} onChange={e => setStatus(e.target.value as Status)} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"><option value="menunggu_persetujuan">Menunggu Persetujuan</option><option value="semua">Semua status</option><option value="disetujui">Disetujui</option><option value="ditolak">Ditolak</option></select>
     </div>
     <div className="space-y-3">
       {loading ? <div className="rounded-2xl bg-white border border-slate-200 p-10 text-center text-slate-500">Memuat data pengajuan…</div> : items.length === 0 ? <div className="rounded-2xl bg-white border border-slate-200 p-10 text-center"><div className="text-lg font-bold text-slate-800">Tidak ada pengajuan</div><p className="text-sm text-slate-500 mt-1">Tidak ada data yang cocok dengan filter saat ini.</p></div> : items.map(item => <article key={`${item.kind}-${item.id}`} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4"><div className="min-w-0 flex-1"><div className="flex flex-wrap gap-2 items-center"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${item.kind === 'event' ? 'bg-sky-50 text-sky-800' : 'bg-violet-50 text-violet-800'}`}>{item.kind === 'event' ? 'EVENT / PROGRAM' : 'PENDIDIKAN TPQ'}</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${item.status === 'disetujui' ? 'bg-emerald-50 text-emerald-800' : item.status === 'ditolak' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800'}`}>{statusLabel(item.status)}</span></div><h2 className="text-lg font-bold text-slate-900 mt-3">{item.title}</h2><div className="text-sm text-slate-600 mt-1">{item.org} · {item.city || 'Lokasi belum diisi'} · Mulai {dateLabel(item.date)}</div>{item.description && <p className="text-sm text-slate-600 mt-3 whitespace-pre-line">{item.description}</p>}</div>
-          {item.status === 'menunggu_persetujuan' && <div className="flex flex-wrap gap-2 shrink-0"><button disabled={busyId === item.id} onClick={() => void act(item, 'approve')} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{busyId === item.id ? 'Memproses…' : 'Setujui'}</button><button disabled={busyId === item.id} onClick={() => void act(item, 'reject')} className="rounded-xl border border-rose-200 px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Tolak</button></div>}
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4"><SubmissionSummary item={item} />
+          <div className="flex flex-wrap gap-2 shrink-0"><DetailButton kind={item.kind} onClick={() => setDetailItem(item)} />{item.status === 'menunggu_persetujuan' && <><button disabled={busyId === item.id} onClick={() => void act(item, 'approve')} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50">{busyId === item.id ? 'Memproses…' : 'Setujui'}</button><button disabled={busyId === item.id} onClick={() => void act(item, 'reject')} className="rounded-xl border border-rose-200 px-4 py-2.5 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Tolak</button></>}</div>
         </div>
       </article>)}
     </div>
+    {detailItem && <SubmissionDetailModal item={detailItem} onClose={() => setDetailItem(null)} />}
   </div>;
 };

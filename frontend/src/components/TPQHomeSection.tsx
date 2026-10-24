@@ -100,6 +100,20 @@ const getTPQSelectionMeta = (program: TPQProgram) => {
 };
 
 
+const getTPQExtraMeta = (program: TPQProgram) => {
+  const raw = String(program.tujuanPembelajaran || '');
+  if (raw.startsWith('TPQ_META:')) {
+    try {
+      const meta = JSON.parse(raw.slice('TPQ_META:'.length));
+      return {
+        jenisPendidikan: typeof meta.jenisPendidikan === 'string' && meta.jenisPendidikan.trim() ? meta.jenisPendidikan.trim() : 'TPQ',
+        persyaratan: typeof meta.persyaratan === 'string' ? meta.persyaratan : '',
+      };
+    } catch { /* data lama */ }
+  }
+  return { jenisPendidikan: 'TPQ', persyaratan: '' };
+};
+
 // Tombol WhatsApp ke penyelenggara: nomor dinormalisasi ke format internasional (62...), pesan diisi otomatis.
 const waDigits = (phone?: string) => {
   let d = String(phone || '').replace(/\D/g, '');
@@ -293,7 +307,13 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
   const setField = (key: keyof typeof registration) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setRegistration((v) => ({ ...v, [key]: e.target.value }));
   const backToDetail = () => navigateTPQHash(tpqHash(program.id, 'detail'), true);
-  const registrationClosed = phase === 'selesai';
+  // Kuota peserta: format sama dengan halaman Detail Event (terdaftar / kuota, sisa kursi, bar progres).
+  const kuotaMax = Number(program.kuotaPeserta) || 0;
+  const pendaftar = Number(program.jumlahPendaftar) || 0;
+  const sisaKuota = Math.max(0, kuotaMax - pendaftar);
+  const isFull = kuotaMax > 0 && sisaKuota <= 0;
+  const kuotaPercent = kuotaMax > 0 ? Math.min(100, Math.round((pendaftar / kuotaMax) * 100)) : 0;
+  const registrationClosed = phase === 'selesai' || isFull;
 
   const breadcrumb = (
     <nav aria-label="Navigasi halaman" className="flex items-center gap-1.5 text-[12px] text-slate-500 flex-wrap">
@@ -347,7 +367,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
 
             {registrationClosed && (
               <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-[13px] text-rose-800">
-                Program ini sudah selesai, pendaftaran baru tidak dapat diterima.
+                {isFull ? 'Kuota peserta program ini sudah penuh, pendaftaran baru tidak dapat diterima.' : 'Program ini sudah selesai, pendaftaran baru tidak dapat diterima.'}
               </div>
             )}
 
@@ -428,22 +448,28 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
     );
   }
 
-  const rows: Array<[string, string, string]> = [
-    ['calendar_month', 'Tanggal Pelaksanaan', `${formatDate(program.tanggalMulai)} – ${formatDate(program.tanggalSelesai)}`],
-    [
-      'event_repeat',
-      'Jadwal Pertemuan',
-      [
-        program.hariPertemuan?.length ? program.hariPertemuan.join(', ') : '',
-        program.jamMulai ? `${program.jamMulai}${program.jamSelesai ? ` – ${program.jamSelesai}` : ''} WIB` : '',
-      ]
-        .filter(Boolean)
-        .join(' • ') || '-',
-    ],
-    ['groups', 'Kuota Peserta', program.kuotaPeserta > 0 ? `${program.kuotaPeserta} peserta` : 'Tidak dibatasi'],
-    ['person', 'Jenis Peserta', getTPQSelectionMeta(program).participants.join(', ') || program.targetPeserta || '-'],
-    ['category', 'Kategori Pendidikan', getTPQSelectionMeta(program).categories.join(', ') || '-'],
-    ['location_on', 'Lokasi', `${program.lokasiDanAlamat}, ${program.kota}, ${program.provinsi}`],
+  // Format data detail pendidikan sama dengan Form Pengajuan Pendidikan di dashboard Mitra/Superadmin.
+  const selectionMeta = getTPQSelectionMeta(program);
+  const extraMeta = getTPQExtraMeta(program);
+  const persyaratanList = extraMeta.persyaratan
+    .split('\n').map(v => v.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean);
+  const lokasiLembaga = String(program.lokasiDanAlamat || '').replace(/\s+[—–]\s+/g, ', ').trim();
+
+  const rows: Array<{ icon: string; label: string; value: string; sub?: string; wide?: boolean }> = [
+    { icon: 'school', label: 'Jenis Pendidikan', value: extraMeta.jenisPendidikan },
+    { icon: 'apartment', label: 'Nama Lembaga Pendidikan', value: program.namaProgram || '-' },
+    { icon: 'person', label: 'Jenis Peserta / Disabilitas', value: selectionMeta.participants.join(', ') || program.targetPeserta || '-' },
+    { icon: 'category', label: 'Program', value: selectionMeta.categories.join(', ') || '-' },
+    { icon: 'notes', label: 'Deskripsi', value: program.deskripsiProgram || '-', wide: true },
+    { icon: 'calendar_month', label: 'Tanggal Mulai', value: formatDate(program.tanggalMulai) },
+    { icon: 'event_available', label: 'Tanggal Berakhir', value: formatDate(program.tanggalSelesai) },
+    kuotaMax > 0
+      ? { icon: 'groups', label: 'Kuota Peserta', value: `${pendaftar} / ${kuotaMax} peserta`, sub: isFull ? 'Kuota penuh' : `Sisa ${sisaKuota} kursi` }
+      : { icon: 'groups', label: 'Kuota Peserta', value: 'Tidak dibatasi' },
+    { icon: 'location_on', label: 'Lokasi Lembaga', value: lokasiLembaga || '-', wide: true },
+    { icon: 'map', label: 'Provinsi', value: program.provinsi || '-' },
+    { icon: 'location_city', label: 'Kota / Kabupaten', value: program.kota || '-' },
+    { icon: 'checklist', label: 'Persyaratan Peserta', value: persyaratanList.length ? persyaratanList.map((item, i) => `${i + 1}. ${item}`).join('\n') : 'Persyaratan belum dicantumkan.', wide: true },
   ];
 
   return (
@@ -493,50 +519,52 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
               <p className="text-[13px] text-slate-500">Penyelenggara: <strong className="text-slate-700">{program.mitraOrg || program.mitraName || '-'}</strong></p>
             </div>
 
-            <p className="text-[14px] text-slate-700 mt-4 whitespace-pre-line">{program.deskripsiProgram}</p>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
-              {rows.map(([icon, label, value]) => (
-                <div key={label} className={`rounded-xl bg-slate-50 border border-slate-100 p-3 flex gap-2.5 ${label === 'Lokasi' ? 'sm:col-span-2' : ''}`}>
+              {rows.map(({ icon, label, value, sub, wide }) => (
+                <div key={label} className={`rounded-xl bg-slate-50 border border-slate-100 p-3 flex gap-2.5 ${wide ? 'sm:col-span-2' : ''}`}>
                   <Icon name={icon} className="text-[18px] text-emerald-700 mt-0.5" />
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
-                    <p className="text-[13px] text-slate-800 break-words">{value}</p>
+                    <p className="text-[13px] text-slate-800 break-words whitespace-pre-line">{value}</p>
+                    {sub && <p className={`text-[11.5px] mt-0.5 ${isFull && label === 'Kuota Peserta' ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>{sub}</p>}
                   </div>
                 </div>
               ))}
-            </div>
-
-            {[
-              ['Tujuan Pembelajaran', program.tujuanPembelajaran],
-              ['Materi Pembelajaran', program.materiPembelajaran],
-              ['Metode Pembelajaran', program.metodePembelajaran],
-              ['Benefit Program', program.benefitProgram],
-            ]
-              .filter(([, v]) => v && String(v).trim())
-              .map(([title, v]) => (
-                <div key={title as string} className="mt-4">
-                  <h2 className="text-[13px] font-bold text-slate-900">{title}</h2>
-                  <p className="text-[13px] text-slate-600 whitespace-pre-line">{v}</p>
-                </div>
-              ))}
-
-            {program.kebutuhanFasilitas?.length > 0 && (
-              <div className="mt-4">
-                <h2 className="text-[13px] font-bold text-slate-900 mb-1.5">Fasilitas Pendukung</h2>
-                <div className="flex flex-wrap gap-1.5">
-                  {program.kebutuhanFasilitas.map(f => (
-                    <span key={f} className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[12px]">{f}</span>
-                  ))}
+              <div className="sm:col-span-2 rounded-xl bg-slate-50 border border-slate-100 p-3 flex gap-2.5">
+                <Icon name="photo_library" className="text-[18px] text-emerald-700 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Foto Fasilitas Lembaga</p>
+                  {photos.length > 0 ? (
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {photos.map((src, i) => (
+                        <a key={i} href={src} target="_blank" rel="noreferrer" className="block aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 bg-white">
+                          <img src={src} alt={`Foto fasilitas ${program.namaProgram} ${i + 1}`} className="w-full h-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-slate-500">Foto fasilitas belum diunggah.</p>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
 
             <div className="mt-6 pt-5 border-t border-slate-100">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">Pendaftaran Pendidikan TPQ</h2>
-                  <p className="text-sm text-slate-600 mt-1">{registrationClosed ? 'Program ini sudah selesai.' : 'Daftarkan diri Anda melalui formulir pendaftaran. Setelah pendaftaran berhasil, Anda dapat menghubungi penyelenggara melalui tombol WhatsApp.'}</p>
+                  <p className="text-sm text-slate-600 mt-1">{isFull ? 'Kuota peserta program ini sudah penuh, pendaftaran baru tidak dapat diterima.' : phase === 'selesai' ? 'Program ini sudah selesai.' : 'Daftarkan diri Anda melalui formulir pendaftaran. Setelah pendaftaran berhasil, Anda dapat menghubungi penyelenggara melalui tombol WhatsApp.'}</p>
+                  {kuotaMax > 0 && (
+                    <div className="mt-3 max-w-md">
+                      <div className="flex justify-between text-[12px] text-slate-600 mb-1.5">
+                        <span>{pendaftar} terdaftar</span>
+                        <span>{isFull ? 'Kuota penuh' : `Sisa ${sisaKuota} dari ${kuotaMax}`}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-200 overflow-hidden" role="progressbar" aria-valuenow={kuotaPercent} aria-valuemin={0} aria-valuemax={100} aria-label="Kuota terisi">
+                        <div className={`h-full rounded-full ${isFull ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${kuotaPercent}%` }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -545,7 +573,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
                   className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13px] font-bold cursor-pointer shrink-0"
                 >
                   <Icon name="edit_square" className="text-[18px]" />
-                  Daftar Sekarang
+                  {isFull ? 'Kuota Penuh' : 'Daftar Sekarang'}
                 </button>
               </div>
             </div>
