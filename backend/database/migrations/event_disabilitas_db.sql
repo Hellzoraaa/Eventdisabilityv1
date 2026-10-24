@@ -396,6 +396,18 @@ INSERT IGNORE INTO `application_settings`
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- TABEL KUNJUNGAN WEBSITE (statistik 'Total Pengunjung' di landing page)
+CREATE TABLE IF NOT EXISTS `site_visits` (
+  `id`         bigint unsigned NOT NULL AUTO_INCREMENT,
+  `visitor_id` varchar(64)  COLLATE utf8mb4_unicode_ci NOT NULL,
+  `halaman`    varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_sv_visitor` (`visitor_id`, `created_at`),
+  KEY `idx_sv_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ==========================================================================
 -- 4. VERIFIKASI (jumlah baris tiap tabel)
 -- ==========================================================================
@@ -407,4 +419,5 @@ UNION ALL SELECT 'training_proposals',  COUNT(*) FROM `training_proposals`
 UNION ALL SELECT 'participants',        COUNT(*) FROM `participants`
 UNION ALL SELECT 'tpq_programs',        COUNT(*) FROM `tpq_programs`
 UNION ALL SELECT 'application_settings',COUNT(*) FROM `application_settings`
-UNION ALL SELECT 'system_logs',         COUNT(*) FROM `system_logs`;
+UNION ALL SELECT 'system_logs',         COUNT(*) FROM `system_logs`
+UNION ALL SELECT 'site_visits',         COUNT(*) FROM `site_visits`;

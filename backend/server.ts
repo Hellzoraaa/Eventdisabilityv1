@@ -1942,13 +1942,92 @@ async function authorizeParticipantWrite(req: any, res: any, participant: { even
   return true;
 }
 
-// Statistik publik untuk landing page: hanya angka total, tanpa data pribadi peserta.
+// ---- Statistik publik & pencatatan pengunjung website ----
+// Tabel site_visits dibuat otomatis (CREATE TABLE IF NOT EXISTS) saat server start
+// dan juga dicek lagi saat endpoint dipakai. Yang disimpan hanya ID acak anonim dari
+// browser; alamat IP dan identitas pengguna TIDAK disimpan.
+let siteVisitsTableReady = false;
+async function ensureSiteVisitsTable(pool: any) {
+  if (siteVisitsTableReady) return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS site_visits (
+    id bigint unsigned NOT NULL AUTO_INCREMENT,
+    visitor_id varchar(64) NOT NULL,
+    halaman varchar(255) DEFAULT NULL,
+    user_agent varchar(255) DEFAULT NULL,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_sv_visitor (visitor_id, created_at),
+    KEY idx_sv_created (created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  siteVisitsTableReady = true;
+}
+
+// Mesin pencari / robot tidak dihitung sebagai pengunjung.
+const BOT_USER_AGENT = /bot|crawl|spider|slurp|preview|headless|lighthouse|pingdom|uptime|curl|wget|python-requests|httpclient|axios|node-fetch/i;
+
+app.post('/api/public/visit', async (req, res) => {
+  try {
+    const visitorId = String(req.body?.visitorId ?? '').trim();
+    if (!/^[A-Za-z0-9-]{16,64}$/.test(visitorId)) {
+      return res.status(400).json({ error: 'visitorId tidak valid.' });
+    }
+    const userAgent = String(req.headers['user-agent'] ?? '');
+    if (!userAgent || BOT_USER_AGENT.test(userAgent)) {
+      return res.json({ ok: true, counted: false });
+    }
+    if (isIpLimited(`visit:${req.ip || 'unknown'}`, 200)) {
+      return res.status(429).json({ error: 'Terlalu banyak permintaan.' });
+    }
+
+    const pool = await getPool();
+    await ensureSiteVisitsTable(pool);
+
+    // Kunjungan berulang dari pengunjung yang sama dalam 30 menit dihitung satu kali.
+    const [recent] = await pool.query(
+      'SELECT 1 FROM site_visits WHERE visitor_id = ? AND created_at > (NOW() - INTERVAL 30 MINUTE) LIMIT 1',
+      [visitorId]
+    );
+    if (Array.isArray(recent) && recent.length > 0) {
+      return res.json({ ok: true, counted: false });
+    }
+
+    const halaman = String(req.body?.halaman ?? '/').slice(0, 255);
+    await pool.query(
+      'INSERT INTO site_visits (visitor_id, halaman, user_agent) VALUES (?, ?, ?)',
+      [visitorId, halaman, userAgent.slice(0, 255)]
+    );
+    return res.json({ ok: true, counted: true });
+  } catch (error) {
+    console.error('[Public Visit POST] error:', error);
+    return res.status(500).json({ error: 'Gagal mencatat kunjungan.' });
+  }
+});
+
+// Statistik publik untuk landing page: hanya angka total, tanpa data pribadi.
+//  - totalPeserta    : peserta event yang tidak berstatus batal
+//  - totalPengunjung : jumlah pengunjung unik (ID browser berbeda)
+//  - totalKunjungan  : jumlah kunjungan tercatat
 app.get('/api/public/stats', async (_req, res) => {
   try {
     const pool = await getPool();
     const [rows] = await pool.query("SELECT COUNT(*) AS total FROM participants WHERE status_kehadiran <> 'batal'");
-    const total = Array.isArray(rows) ? Number((rows[0] as any)?.total ?? 0) : 0;
-    return res.json({ totalPeserta: total });
+    const totalPeserta = Array.isArray(rows) ? Number((rows[0] as any)?.total ?? 0) : 0;
+
+    let totalPengunjung = 0;
+    let totalKunjungan = 0;
+    try {
+      await ensureSiteVisitsTable(pool);
+      const [v] = await pool.query('SELECT COUNT(DISTINCT visitor_id) AS pengunjung, COUNT(*) AS kunjungan FROM site_visits');
+      if (Array.isArray(v) && v[0]) {
+        totalPengunjung = Number((v[0] as any).pengunjung ?? 0);
+        totalKunjungan = Number((v[0] as any).kunjungan ?? 0);
+      }
+    } catch (visitError) {
+      console.error('[Public Stats] site_visits error:', visitError);
+    }
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({ totalPeserta, totalPengunjung, totalKunjungan });
   } catch (error) {
     console.error('[Public Stats GET] error:', error);
     return res.status(500).json({ error: 'Gagal mengambil statistik.' });
@@ -2934,6 +3013,7 @@ async function startServer() {
       await ensureInitialPasswords();
       await ensurePasswordResetTable();
       await ensureRevisionSchema();
+      await ensureSiteVisitsTable(await getPool());
       console.log('[MySQL] Database siap dan tersinkronisasi.');
     } catch (err) {
       console.error('[MySQL] Koneksi database gagal:', err);

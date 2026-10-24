@@ -64,12 +64,82 @@ const EnglandFlag: React.FC<{ className?: string }> = ({ className = "w-[20px] h
   </svg>
 );
 
-// Ubah tanggal "2026-10-24" (atau "2026-10-24T00:00:00Z") menjadi "24-10-2026".
-// Jika formatnya tidak dikenali, nilai asli dikembalikan apa adanya.
-const formatTanggal = (value?: string | null): string => {
+const NAMA_BULAN = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+
+// Ambil bagian YYYY-MM-DD dari sebuah string tanggal (abaikan jam / keterangan setelahnya).
+const ambilYMD = (value?: string | null): string => {
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(value ?? '').trim());
+  return m ? m[1] : '';
+};
+
+// "2026-10-24" -> "24 Oktober 2026". Format yang tidak dikenali dikembalikan apa adanya.
+const formatTanggalPanjang = (value?: string | null): string => {
   if (!value) return '';
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value).trim());
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : String(value);
+  const ymd = ambilYMD(value);
+  if (!ymd) return String(value);
+  const [y, m, d] = ymd.split('-').map(Number);
+  return `${d} ${NAMA_BULAN[m - 1] ?? ''} ${y}`.replace(/\s+/g, ' ').trim();
+};
+
+// Hitung tanggal berakhir dari tanggal mulai + durasi (mis. "3 Hari"), untuk event lama
+// yang kolom tanggal berakhirnya belum terisi. Durasi "Jam" berarti masih di hari yang sama.
+const hitungTanggalAkhir = (startYMD: string, durasi?: string | null): string => {
+  const match = String(durasi ?? '').trim().match(/^(\d+)\s*(jam|hari|minggu|bulan)$/i);
+  if (!startYMD || !match) return '';
+  const n = Math.max(1, Number(match[1]));
+  const satuan = match[2].toLowerCase();
+  if (satuan === 'jam') return startYMD;
+  const date = new Date(`${startYMD}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  if (satuan === 'hari') date.setDate(date.getDate() + n - 1);
+  else if (satuan === 'minggu') date.setDate(date.getDate() + n * 7 - 1);
+  else { date.setMonth(date.getMonth() + n); date.setDate(date.getDate() - 1); }
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+// Lebih dari 1 hari -> "24 Oktober 2026 - 26 Oktober 2026"; 1 hari -> "26 Oktober 2026".
+const formatRentangTanggal = (ev: {
+  tanggalKegiatan?: string | null;
+  tanggalBerakhirKegiatan?: string | null;
+  durasiProgram?: string | null;
+}): string => {
+  const start = ambilYMD(ev.tanggalKegiatan);
+  if (!start) return String(ev.tanggalKegiatan ?? '');
+  const end = ambilYMD(ev.tanggalBerakhirKegiatan) || hitungTanggalAkhir(start, ev.durasiProgram);
+  if (end && end > start) return `${formatTanggalPanjang(start)} - ${formatTanggalPanjang(end)}`;
+  return formatTanggalPanjang(start);
+};
+
+// ID acak anonim per browser (disimpan di localStorage) untuk menghitung pengunjung unik.
+const ambilVisitorId = (): string => {
+  const KEY = 'aqd_visitor_id';
+  try {
+    const existing = localStorage.getItem(KEY);
+    if (existing && /^[A-Za-z0-9-]{16,64}$/.test(existing)) return existing;
+  } catch { /* localStorage bisa diblokir; lanjut dengan ID baru */ }
+  const id =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  try { localStorage.setItem(KEY, id); } catch { /* abaikan */ }
+  return id;
+};
+
+// Catat kunjungan ke server (maksimal satu kali per sesi tab browser).
+const catatKunjungan = async (): Promise<void> => {
+  const FLAG = 'aqd_visit_logged';
+  try {
+    if (sessionStorage.getItem(FLAG)) return;
+    sessionStorage.setItem(FLAG, '1');
+  } catch { /* sessionStorage diblokir: server tetap menyaring duplikat */ }
+  await fetch('/api/public/visit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visitorId: ambilVisitorId(), halaman: window.location.pathname }),
+  });
 };
 
 // Kartu statistik dengan angka yang menghitung naik dari 0
@@ -132,16 +202,26 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     }
   }, []);
 
-  // Total peserta yang sudah bergabung (endpoint publik, hanya mengembalikan angka)
+  // Statistik publik: catat kunjungan lebih dulu, lalu ambil angka terbaru dari database
   const [totalPeserta, setTotalPeserta] = useState(0);
+  const [totalPengunjung, setTotalPengunjung] = useState(0);
   useEffect(() => {
-    fetch('/api/public/stats')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => {
-        const n = Number(data?.totalPeserta);
-        if (Number.isFinite(n)) setTotalPeserta(n);
-      })
-      .catch(console.error);
+    let batal = false;
+    (async () => {
+      try { await catatKunjungan(); } catch (err) { console.error(err); }
+      try {
+        const res = await fetch('/api/public/stats');
+        const data = res.ok ? await res.json() : null;
+        if (batal || !data) return;
+        const peserta = Number(data.totalPeserta);
+        const pengunjung = Number(data.totalPengunjung);
+        if (Number.isFinite(peserta)) setTotalPeserta(peserta);
+        if (Number.isFinite(pengunjung)) setTotalPengunjung(pengunjung);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+    return () => { batal = true; };
   }, []);
 
   const activeEventCategories = useMemo(() => {
@@ -1051,7 +1131,8 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
             <div className="lg:col-span-7">
               <h2 className="text-2xl sm:text-4xl font-extrabold text-[#006316] tracking-tight leading-tight">
-                SISTEM INFORMASI LAYANAN AL-QUR'AN DISABILITAS
+                SISTEM INFORMASI LAYANAN 
+                AL-QUR'AN DISABILITAS
               </h2>
             </div>
 
@@ -1078,7 +1159,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
           </div>
 
-          {/* Counter Metrics: 3 kartu di baris atas, 2 kartu di tengah baris bawah */}
+          {/* Counter Metrics: 6 kartu (3 kartu per baris) */}
           <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 sm:gap-6 mb-12">
             <StatCard
               className="sm:col-span-2"
@@ -1096,14 +1177,19 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               label="Cakupan Lokasi Event & Pendidikan"
             />
             <StatCard
-              className="sm:col-span-2 sm:col-start-2"
+              className="sm:col-span-2"
               value={totalPeserta}
               label="Peserta Yang Sudah Bergabung"
             />
             <StatCard
-              className="sm:col-span-2 sm:col-start-4"
+              className="sm:col-span-2"
               value={communities.length}
               label="Mitra Yang Sudah Bergabung"
+            />
+            <StatCard
+              className="sm:col-span-2"
+              value={totalPengunjung}
+              label="Total Pengunjung Website"
             />
           </div>
 
@@ -1380,7 +1466,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px] text-slate-600">
                     <span className="flex items-center gap-1.5">
                       <Icon name="calendar_month" className="text-[16px] text-slate-400" />
-                      <span>{formatTanggal(event.tanggalKegiatan)}</span>
+                      <span>{formatRentangTanggal(event)}</span>
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Icon name="menu_book" className="text-[16px] text-slate-400" />
@@ -1401,7 +1487,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                     </span>
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] border border-slate-200/80 font-medium">
                       <Icon name="info" className="text-[14px] text-slate-500" />
-                      <span>Batas Pendaftaran {formatTanggal(event.batasPendaftaran) || 'Belum ditentukan'}</span>
+                      <span>Batas Pendaftaran {formatTanggalPanjang(event.batasPendaftaran) || 'Belum ditentukan'}</span>
                     </span>
                   </div>
                 </div>
@@ -2508,7 +2594,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                           >
                             <div>
                               <h5 className="font-bold text-[13px] text-slate-900">{ev.namaKegiatan}</h5>
-                              <span className="text-[11px] text-slate-500">{formatTanggal(ev.tanggalKegiatan)} • {ev.kota}</span>
+                              <span className="text-[11px] text-slate-500">{formatRentangTanggal(ev)} • {ev.kota}</span>
                             </div>
                             <button
                               onClick={() => {
