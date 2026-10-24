@@ -15,6 +15,16 @@ import { isTPQMapId } from './TPQHomeSection.tsx';
 const MAP_COLOR_PENDIDIKAN = '#2563eb';
 const MAP_COLOR_EVENT = '#16a34a';
 
+// Buka Google Maps dengan petunjuk arah menuju lokasi event/pendidikan.
+// Titik asal tidak diisi, sehingga Google Maps memakai lokasi pengguna saat ini.
+const bukaRuteGoogleMaps = (ev: { latitude: number | string; longitude: number | string }) => {
+  const lat = Number(ev.latitude);
+  const lng = Number(ev.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
+
 export interface EventDisabilityCategoryInfo {
   id: string;
   kode: string;
@@ -453,7 +463,7 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
 
       // Detail action button
       const detailBtn = document.createElement('button');
-      detailBtn.className = 'w-full py-2 mb-1 bg-[#006316] hover:bg-[#004d11] text-white rounded-xl text-[12px] font-bold transition-all shadow-xs cursor-pointer text-center';
+      detailBtn.className = 'w-full py-2 mb-1.5 bg-[#006316] hover:bg-[#004d11] text-white rounded-xl text-[12px] font-bold transition-all shadow-xs cursor-pointer text-center';
       detailBtn.innerText = 'Lihat Detail Pelatihan';
       detailBtn.onclick = () => {
         if (onOpenEventDetail) {
@@ -463,6 +473,15 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
         }
       };
       popupDiv.appendChild(detailBtn);
+
+      // Tombol rute: buka Google Maps dengan petunjuk arah ke lokasi ini
+      const routeBtn = document.createElement('button');
+      routeBtn.type = 'button';
+      routeBtn.className = 'w-full py-2 mb-1 bg-white hover:bg-emerald-50 text-[#006316] border border-[#006316] rounded-xl text-[12px] font-bold transition-all cursor-pointer text-center';
+      routeBtn.innerText = 'Rute & Petunjuk Arah';
+      routeBtn.setAttribute('aria-label', `Buka rute Google Maps ke ${ev.namaKegiatan}`);
+      routeBtn.onclick = () => bukaRuteGoogleMaps(ev);
+      popupDiv.appendChild(routeBtn);
 
       marker.bindPopup(popupDiv);
       marker.on('click', () => {
@@ -727,7 +746,7 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
                       </span>
                     </div>
 
-                    <div className="mt-3">
+                    <div className="mt-3 space-y-2">
                       <button
                         onClick={e => {
                           e.stopPropagation();
@@ -741,6 +760,18 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
                       >
                         <Icon name="visibility" className="text-[15px]" />
                         <span>Lihat Detail Pelatihan</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          bukaRuteGoogleMaps(ev);
+                        }}
+                        aria-label={`Buka rute Google Maps ke ${ev.namaKegiatan}`}
+                        className="w-full py-2 rounded-xl bg-white hover:bg-emerald-50 text-[#006316] border border-[#006316] text-[12px] font-bold tracking-wide transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
+                      >
+                        <Icon name="directions" className="text-[15px]" />
+                        <span>Rute & Petunjuk Arah</span>
                       </button>
                     </div>
                   </div>

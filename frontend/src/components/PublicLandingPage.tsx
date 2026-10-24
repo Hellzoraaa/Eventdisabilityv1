@@ -10,6 +10,7 @@ import { EventDetailModal } from './EventDetailModal.tsx';
 import { openEventPage } from './EventDetailPage.tsx';
 import { TpqNavMenu } from './TpqNavMenu.tsx';
 import { TPQHomeSection, openTPQPage, isTPQPublished, tpqToMapItem, isTPQMapId, tpqIdFromMapId } from './TPQHomeSection.tsx';
+import { ArticlesPage, parseArticleHash } from './ArticlesPage.tsx';
 
 interface PublicLandingPageProps {
   events: TrainingProposal[];
@@ -68,6 +69,26 @@ const NAMA_BULAN = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
+
+// ===== Dropdown navbar "Event": Training Of Trainer / Pelatihan / Lomba Umum =====
+type TipeEvent = 'semua' | 'tot' | 'pelatihan' | 'lomba';
+
+const EVENT_TIPE_MENU: { key: Exclude<TipeEvent, 'semua'>; id: string; en: string }[] = [
+  { key: 'tot', id: 'Training Of Trainer', en: 'Training of Trainers' },
+  { key: 'pelatihan', id: 'Pelatihan', en: 'Training' },
+  { key: 'lomba', id: 'Lomba Umum', en: 'Public Competition' },
+];
+
+// Cocokkan teks (jenis event + nama kegiatan + nama kategori) dengan tipe yang dipilih
+const cocokTipeEvent = (tipe: TipeEvent, teks: string): boolean => {
+  if (tipe === 'semua') return true;
+  const isTot = /training\s*of\s*trainer|\btot\b/i.test(teks);
+  if (tipe === 'tot') return isTot;
+  const isLomba = /lomba|kompetisi|musabaqah|mtq/i.test(teks);
+  if (tipe === 'lomba') return isLomba;
+  // pelatihan: semua yang bukan ToT dan bukan lomba
+  return !isTot && !isLomba && /pelatihan|training/i.test(teks);
+};
 
 // Ambil bagian YYYY-MM-DD dari sebuah string tanggal (abaikan jam / keterangan setelahnya).
 const ambilYMD = (value?: string | null): string => {
@@ -268,6 +289,24 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   const [facilityBraille, setFacilityBraille] = useState(false);
   const [facilityOnline, setFacilityOnline] = useState(false);
 
+  // Dropdown navbar Event (ToT / Pelatihan / Lomba Umum)
+  const [eventTipe, setEventTipe] = useState<TipeEvent>('semua');
+  const [isEventDropdownOpen, setIsEventDropdownOpen] = useState(false);
+  const eventDropdownRef = useRef<HTMLDivElement>(null);
+  const [isMobileEventOpen, setIsMobileEventOpen] = useState(false);
+  const [isEventTestOpen, setIsEventTestOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent) => {
+      if (eventDropdownRef.current && !eventDropdownRef.current.contains(e.target as Node)) {
+        setIsEventDropdownOpen(false);
+        setIsEventTestOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
   // Map Filter state
   const [mapSearch, setMapSearch] = useState('');
   const [mapCategory, setMapCategory] = useState<'all' | 'tunanetra' | 'tunarungu' | 'tunadaksa' | 'intelektual'>('all');
@@ -287,9 +326,65 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   const [copiedContactItem, setCopiedContactItem] = useState<string | null>(null);
   const [activeContactFaq, setActiveContactFaq] = useState<number | null>(null);
 
-  // Articles Modal State
-  const [isArticlesModalOpen, setIsArticlesModalOpen] = useState(false);
-  const [selectedArticle, setSelectedArticle] = useState<{ title: string; category: string; content: string; date: string } | null>(null);
+  // Halaman Artikel (#artikel dan #artikel/<slug>)
+  const [articleRoute, setArticleRoute] = useState(() => parseArticleHash(window.location.hash));
+  useEffect(() => {
+    const onHashChange = () => setArticleRoute(parseArticleHash(window.location.hash));
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  // Setelah kembali dari halaman artikel ke landing page, gulir ke section sesuai hash (#kontak-kami, dll.)
+  useEffect(() => {
+    if (articleRoute.open) return;
+    const target = window.location.hash.slice(1);
+    if (!target) return;
+    const t = setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' }), 80);
+    return () => clearTimeout(t);
+  }, [articleRoute.open]);
+
+  // Penanda menu navbar sesuai bagian yang sedang dilihat (scroll spy)
+  const [activeSection, setActiveSection] = useState<string>('beranda');
+  useEffect(() => {
+    if (articleRoute.open) return;
+    const sectionIds = ['tentang-kami', 'katalog-event', 'program-tpq', 'peta-lokasi', 'mitra', 'kontak-kami'];
+    const OFFSET = 140; // tinggi navbar (80px) + sedikit ruang
+    let frame = 0;
+
+    const update = () => {
+      frame = 0;
+      let current = '';
+      for (const sid of sectionIds) {
+        const el = document.getElementById(sid);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= OFFSET && rect.bottom > OFFSET) current = sid;
+      }
+      // Masih di atas bagian pertama (hero): tandai Beranda
+      if (!current) {
+        const pertama = document.getElementById('tentang-kami');
+        if (pertama && pertama.getBoundingClientRect().top > OFFSET) current = 'beranda';
+      }
+      // Mentok di dasar halaman: tandai bagian Kontak
+      if (!current && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+        const kontak = document.getElementById('kontak-kami');
+        if (kontak && kontak.getBoundingClientRect().top < window.innerHeight) current = 'kontak-kami';
+      }
+      setActiveSection(prev => (prev === current ? prev : current));
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [articleRoute.open]);
 
   // Registration & Detail Modal State
   const [activeModalEvent, setActiveModalEvent] = useState<TrainingProposal | null>(null);
@@ -334,15 +429,39 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   // Mobile Nav Drawer
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
+  // Pilih tipe event dari dropdown navbar: saring katalog lalu gulir ke section katalog
+  const handleSelectEventTipe = (tipe: TipeEvent) => {
+    setEventTipe(tipe);
+    setIsEventTestOpen(false);
+    setIsEventDropdownOpen(false);
+    setIsMobileEventOpen(false);
+    setIsMobileNavOpen(false);
+    const dariArtikel = parseArticleHash(window.location.hash).open;
+    if (dariArtikel) window.location.hash = 'katalog-event';
+    setTimeout(
+      () => document.getElementById('katalog-event')?.scrollIntoView({ behavior: 'smooth' }),
+      dariArtikel ? 250 : 50
+    );
+  };
+
+  // Pilih Test (Pretest / Postest) dari dropdown Event
+  const handleSelectTestFromEvent = (tipe: 'pretest' | 'postest') => {
+    setIsEventTestOpen(false);
+    setIsEventDropdownOpen(false);
+    setIsMobileEventOpen(false);
+    setIsMobileNavOpen(false);
+    window.location.hash = `#test/${tipe}`;
+  };
+
   // Filter Program TPQ dari menu navbar (Tunanetra / Tunarungu / Tunanetra Dan Tunarungu)
   const [tpqPesertaRequest, setTpqPesertaRequest] = useState<{ label: string; n: number } | null>(null);
   const handleTpqSelect = (jenisPeserta: string) => {
     setTpqPesertaRequest(prev => ({ label: jenisPeserta, n: (prev?.n ?? 0) + 1 }));
-    setTimeout(() => document.getElementById('program-tpq')?.scrollIntoView({ behavior: 'smooth' }), 50);
+    const dariArtikel = parseArticleHash(window.location.hash).open;
+    if (dariArtikel) window.location.hash = 'program-tpq';
+    setTimeout(() => document.getElementById('program-tpq')?.scrollIntoView({ behavior: 'smooth' }), dariArtikel ? 250 : 50);
   };
 
-  // Menu Pendidikan > Test > Pretest / Postest membuka halaman test peserta (#test/pretest | #test/postest)
-  const openTest = (tipe: 'pretest' | 'postest') => { window.location.hash = `#test/${tipe}`; };
 
   // Mitra Feature States
   const [selectedMitraDetail, setSelectedMitraDetail] = useState<QuranCommunity | null>(null);
@@ -418,30 +537,30 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   }, [selectedEventIdFromMap, activeEvents, onClearSelectedEventId]);
 
   // Cities extracted
-          const cities = useMemo(() => {
-          const cityMap = new Map<string, string>();
+  const cities = useMemo(() => {
+    const cityMap = new Map<string, string>();
 
-          activeEvents.forEach(event => {
-            const rawCity = String(event.kota || '').trim();
+    activeEvents.forEach(event => {
+      const rawCity = String(event.kota || '').trim();
 
-            if (!rawCity) return;
+      if (!rawCity) return;
 
-            const normalizedCity = rawCity
-              .replace(/\s+/g, ' ')
-              .toLowerCase();
+      const normalizedCity = rawCity
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
 
-            if (!cityMap.has(normalizedCity)) {
-              cityMap.set(normalizedCity, rawCity);
-            }
-          });
+      if (!cityMap.has(normalizedCity)) {
+        cityMap.set(normalizedCity, rawCity);
+      }
+    });
 
-          return [
-            'Semua',
-            ...Array.from(cityMap.values()).sort((a, b) =>
-              a.localeCompare(b, 'id')
-            ),
-          ];
-        }, [activeEvents]);
+    return [
+      'Semua',
+      ...Array.from(cityMap.values()).sort((a, b) =>
+        a.localeCompare(b, 'id')
+      ),
+    ];
+  }, [activeEvents]);
 
   // Keep filterCategory in sync if a category was deleted or renamed by Super Admin
   useEffect(() => {
@@ -482,66 +601,66 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
         if (!matchesKw) return false;
       }
 
-     // Filter category berdasarkan ID kategori event dari database
-        if (filterCategory !== 'Semua') {
-          const selectedCat = activeEventCategories.find(
-            c =>
-              String(c.kode || '').toLowerCase() === filterCategory.toLowerCase() ||
-              String(c.nama || '').toLowerCase() === filterCategory.toLowerCase() ||
-              String(c.id || '') === filterCategory
-          );
+      // Filter category berdasarkan ID kategori event dari database
+      if (filterCategory !== 'Semua') {
+        const selectedCat = activeEventCategories.find(
+          c =>
+            String(c.kode || '').toLowerCase() === filterCategory.toLowerCase() ||
+            String(c.nama || '').toLowerCase() === filterCategory.toLowerCase() ||
+            String(c.id || '') === filterCategory
+        );
 
-          if (selectedCat) {
-            const eventCategoryId = String(
-              (ev as any).eventCategoryId ||
-              (ev as any).eventCategoryIdString ||
-              ''
-            ).trim();
+        if (selectedCat) {
+          const eventCategoryId = String(
+            (ev as any).eventCategoryId ||
+            (ev as any).eventCategoryIdString ||
+            ''
+          ).trim();
 
-            const selectedCategoryId = String(
-              selectedCat.id || ''
-            ).trim();
+          const selectedCategoryId = String(
+            selectedCat.id || ''
+          ).trim();
 
-            // Event hanya boleh lolos jika ID kategori event
-            // sama persis dengan ID kategori yang dipilih.
-            if (
-              !eventCategoryId ||
-              !selectedCategoryId ||
-              eventCategoryId !== selectedCategoryId
-            ) {
-              return false;
-            }
-          } else {
+          // Event hanya boleh lolos jika ID kategori event
+          // sama persis dengan ID kategori yang dipilih.
+          if (
+            !eventCategoryId ||
+            !selectedCategoryId ||
+            eventCategoryId !== selectedCategoryId
+          ) {
             return false;
           }
+        } else {
+          return false;
         }
+      }
 
       // Filter disability berdasarkan ID master disabilitas di database
-          if (filterDisability !== 'Semua') {
-            const selectedDis = activeDisabilities.find(
-              d =>
-                String(d.kode || '').toLowerCase() === filterDisability.toLowerCase() ||
-                String(d.nama || '').toLowerCase() === filterDisability.toLowerCase() ||
-                String(d.id || '') === filterDisability
-            );
+      if (filterDisability !== 'Semua') {
+        const selectedDis = activeDisabilities.find(
+          d =>
+            String(d.kode || '').toLowerCase() === filterDisability.toLowerCase() ||
+            String(d.nama || '').toLowerCase() === filterDisability.toLowerCase() ||
+            String(d.id || '') === filterDisability
+        );
 
-            if (selectedDis) {
-              // Event menyimpan relasi langsung ke master disabilities
-              // melalui training_proposals.disability_id_string
-              const eventDisabilityId = String((ev as any).disabilityId || '').trim();
-              const selectedDisabilityId = String(selectedDis.id || '').trim();
+        if (selectedDis) {
+          // Event menyimpan relasi langsung ke master disabilities
+          // melalui training_proposals.disability_id_string
+          const eventDisabilityId = String((ev as any).disabilityId || '').trim();
+          const selectedDisabilityId = String(selectedDis.id || '').trim();
 
-              // Untuk kategori disabilitas tertentu:
-              // HARUS cocok berdasarkan ID, bukan berdasarkan kata di deskripsi.
-              if (eventDisabilityId !== selectedDisabilityId) {
-                return false;
-              }
-            } else {
-              return false;
-            }
+          // Untuk kategori disabilitas tertentu:
+          // HARUS cocok berdasarkan ID, bukan berdasarkan kata di deskripsi.
+          if (eventDisabilityId !== selectedDisabilityId) {
+            return false;
           }
+        } else {
+          return false;
+        }
+      }
 
-        // Filter city berdasarkan field kota event dari database
+      // Filter city berdasarkan field kota event dari database
       if (filterCity !== 'Semua') {
         const eventCity = String(ev.kota || '')
           .trim()
@@ -558,23 +677,32 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
         }
       }
 
-          // Checkbox facilities
-            if (facilityJBI) {
-              const hasJBI = ev.kebutuhanPeserta.some(k => k.toLowerCase().includes('isyarat') || k.toLowerCase().includes('jbi'));
-              if (!hasJBI) return false;
-            }
-            if (facilityWheelchair) {
-              const hasWheelchair = ev.kebutuhanPeserta.some(k => k.toLowerCase().includes('kursi roda') || k.toLowerCase().includes('ramp'));
-              if (!hasWheelchair) return false;
-            }
-            if (facilityBraille) {
-              const hasBraille = ev.kebutuhanPeserta.some(k => k.toLowerCase().includes('braille') || k.toLowerCase().includes('netra'));
-              if (!hasBraille) return false;
-            }
-            if (facilityOnline) {
-              const isOnline = ev.lokasiDanAlamat.toLowerCase().includes('online') || ev.lokasiDanAlamat.toLowerCase().includes('daring') || ev.namaKegiatan.toLowerCase().includes('online');
-              if (!isOnline) return false;
-            }
+      // Filter tipe event dari dropdown navbar (ToT / Pelatihan / Lomba)
+      if (eventTipe !== 'semua') {
+        const kat = activeEventCategories.find(
+          c => String(c.id || '') === String((ev as any).eventCategoryId || (ev as any).eventCategoryIdString || '')
+        );
+        const teks = `${ev.jenisEvent || ''} ${ev.namaKegiatan || ''} ${kat?.nama || ''}`;
+        if (!cocokTipeEvent(eventTipe, teks)) return false;
+      }
+
+      // Checkbox facilities
+      if (facilityJBI) {
+        const hasJBI = ev.kebutuhanPeserta.some(k => k.toLowerCase().includes('isyarat') || k.toLowerCase().includes('jbi'));
+        if (!hasJBI) return false;
+      }
+      if (facilityWheelchair) {
+        const hasWheelchair = ev.kebutuhanPeserta.some(k => k.toLowerCase().includes('kursi roda') || k.toLowerCase().includes('ramp'));
+        if (!hasWheelchair) return false;
+      }
+      if (facilityBraille) {
+        const hasBraille = ev.kebutuhanPeserta.some(k => k.toLowerCase().includes('braille') || k.toLowerCase().includes('netra'));
+        if (!hasBraille) return false;
+      }
+      if (facilityOnline) {
+        const isOnline = ev.lokasiDanAlamat.toLowerCase().includes('online') || ev.lokasiDanAlamat.toLowerCase().includes('daring') || ev.namaKegiatan.toLowerCase().includes('online');
+        if (!isOnline) return false;
+      }
 
       return true;
     });
@@ -586,6 +714,8 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     filterCategory,
     filterDisability,
     filterCity,
+    eventTipe,
+    activeEventCategories,
     facilityJBI,
     facilityWheelchair,
     facilityBraille,
@@ -713,33 +843,28 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     setContactDisabilityFormat(false);
   };
 
-  const articlesData = [
-    {
-      title: 'Panduan Mudah Mengenal Al-Quran Braille Standar Indonesia',
-      category: 'Disabilitas Netra',
-      date: '15 September 2024',
-      content:
-        'Al-Quran Braille di Indonesia mengacu pada standar resmi Kementerian Agama RI dengan sistem 6 titik timbul yang memudahkan para tunanetra membaca dengan sentuhan ujung jari. Pelajari tanda harakat, tajwid braille, dan panduan dasar belajarnya di sini.',
-    },
-    {
-      title: 'Metode Pembelajaran Huruf Hijaiyah Isyarat (BISINDO & SIBI)',
-      category: 'Disabilitas Rungu / Tuli',
-      date: '10 September 2024',
-      content:
-        'Pembelajaran Al-Quran bagi teman Tuli kini semakin inklusif berkat pengembangan isyarat hijaiyah dan tafsir isyarat Al-Quran. Melalui visualisasi makhraj huruf dan ekspresi gerak tangan, pemahaman makna ayat suci dapat dicapai dengan komprehensif.',
-    },
-    {
-      title: 'Standarisasi Aksesibilitas Fisik Rumah Quran & Masjid Inklusif',
-      category: 'Disabilitas Daksa & Fisik',
-      date: '02 September 2024',
-      content:
-        'Mewujudkan rumah quran ramah disabilitas daksa mencakup pembuatan ramp dengan kemiringan maksimal 1:12, handrail pemandu, pintu minimal lebar 90cm, dan toilet wudhu ramah kursi roda.',
-    },
-  ];
+  // Penanda menu aktif: garis di bawah menu (putih bila navbar berwarna, hijau bila navbar putih)
+  const activeNav = articleRoute.open ? 'artikel' : activeSection;
+  const navIsColored = !!appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff';
+  const navUnderline = navIsColored ? 'border-white' : 'border-[#006316]';
+  const navItemClass = (key: string) =>
+    `hover:opacity-80 transition-opacity pb-1 border-b-2 ${activeNav === key ? navUnderline : 'border-transparent'}`;
+  const navMobileClass = (key: string) =>
+    `px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors ${activeNav === key ? 'bg-emerald-50 text-[#006316] font-bold' : ''}`;
 
-  return (
-    <div className="min-h-screen w-full flex flex-col font-sans bg-white text-slate-800">
-      {/* 1. TOP NAVBAR - Matching reference image exactly */}
+  // Beranda: kembali ke landing page (jika sedang di halaman artikel) dan gulir ke paling atas
+  const goBeranda = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsMobileNavOpen(false);
+    if (window.location.hash) {
+      history.pushState(null, '', window.location.pathname + window.location.search);
+    }
+    setArticleRoute(parseArticleHash(''));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Navbar dipakai bersama oleh landing page dan halaman Artikel agar tampilannya identik
+  const navbar = (
       <nav
         className="sticky top-0 z-40 w-full border-b transition-colors shadow-2xs"
         style={{
@@ -749,8 +874,14 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          {/* Logo & Brand Name */}
-          <div className="flex items-center gap-3">
+          {/* Logo & Brand Name: klik untuk kembali ke beranda */}
+          <button
+            type="button"
+            onClick={goBeranda}
+            aria-label="Kembali ke beranda"
+            title="Kembali ke beranda"
+            className="flex items-center gap-3 text-left cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-lg"
+          >
             {appSettings?.logo ? (
               <img
                 src={appSettings.logo}
@@ -774,7 +905,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 {appSettings?.institutionSubtitle || "Platform Pelatihan & Pemberdayaan Sahabat Disabilitas"}
               </span>
             </div>
-          </div>
+          </button>
 
           {/* Nav Items & Action Buttons */}
           <div className="flex items-center gap-3 sm:gap-6">
@@ -782,19 +913,102 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               className={`hidden lg:flex items-center gap-6 text-[14px] font-medium ${appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff' ? 'text-white/90' : 'text-slate-600'
                 }`}
             >
-              <a href="#tentang-kami" className="hover:opacity-80 transition-opacity">
+              <a href="/" onClick={goBeranda} className={navItemClass('beranda')}>
+                {currentLang === 'id' ? 'Beranda' : 'Home'}
+              </a>
+              <a href="#tentang-kami" className={navItemClass('tentang-kami')}>
                 {currentLang === 'id' ? 'Tentang Kami' : 'About Us'}
               </a>
-              <a href="#katalog-event" className="hover:opacity-80 transition-opacity">
-                {currentLang === 'id' ? 'Cari Event' : 'Find Events'}
-              </a>
-              <TpqNavMenu
-                variant="desktop"
-                label={currentLang === 'id' ? 'Pendidikan' : 'Education'}
-                onSelect={handleTpqSelect}
-                onSelectTest={openTest}
-              />
-              <a href="#peta-lokasi" className="hover:opacity-80 transition-opacity">
+
+              {/* Dropdown Event: Training Of Trainer / Pelatihan / Lomba Umum */}
+              <div ref={eventDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => { setIsEventDropdownOpen(prev => !prev); setIsEventTestOpen(false); }}
+                  aria-haspopup="menu"
+                  aria-expanded={isEventDropdownOpen}
+                  className={`${navItemClass('katalog-event')} inline-flex items-center gap-1 cursor-pointer`}
+                >
+                  <span>{currentLang === 'id' ? 'Event' : 'Find Events'}</span>
+                  <Icon
+                    name="keyboard_arrow_down"
+                    className="text-[18px] leading-none transition-transform duration-200"
+                    style={{ transform: isEventDropdownOpen ? 'rotate(180deg)' : 'none' }}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {isEventDropdownOpen && (
+                  <div
+                    role="menu"
+                    aria-label="Pilihan Event"
+                    className="absolute left-0 top-full mt-3 w-60 bg-white rounded-2xl p-2 shadow-2xl border border-slate-100 z-50 animate-in fade-in-50 zoom-in-95 text-slate-800"
+                  >
+                    {EVENT_TIPE_MENU.map(item => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => handleSelectEventTipe(item.key)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left transition-colors cursor-pointer ${
+                          eventTipe === item.key ? 'bg-emerald-50 text-[#006316]' : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>{currentLang === 'id' ? item.id : item.en}</span>
+                      </button>
+                    ))}
+
+                    {/* Test: klik untuk menampilkan Pretest & Postest */}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      aria-haspopup="menu"
+                      aria-expanded={isEventTestOpen}
+                      onClick={() => setIsEventTestOpen(prev => !prev)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left transition-colors cursor-pointer ${
+                        isEventTestOpen ? 'bg-emerald-50 text-[#006316]' : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>Test</span>
+                      <Icon
+                        name="keyboard_arrow_down"
+                        className="text-[18px] leading-none transition-transform duration-200"
+                        style={{ transform: isEventTestOpen ? 'rotate(180deg)' : 'none' }}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {isEventTestOpen && (
+                      <div className="ml-3 pl-2 border-l-2 border-emerald-100">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => handleSelectTestFromEvent('pretest')}
+                          className="w-full px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                        >
+                          Pretest
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => handleSelectTestFromEvent('postest')}
+                          className="w-full px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                        >
+                          Postest
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className={navItemClass('program-tpq')}>
+                <TpqNavMenu
+                  variant="desktop"
+                  label={currentLang === 'id' ? 'Pendidikan' : 'Education'}
+                  onSelect={handleTpqSelect}
+                />
+              </div>
+              <a href="#peta-lokasi" className={navItemClass('peta-lokasi')}>
                 {currentLang === 'id' ? 'Peta Lokasi' : 'Location Map'}
               </a>
               <a
@@ -803,20 +1017,16 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                   e.preventDefault();
                   document.getElementById('mitra')?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="hover:opacity-80 transition-opacity"
+                className={navItemClass('mitra')}
               >
                 {currentLang === 'id' ? 'Mitra' : 'Partners'}
               </a>
-              <a href="#kontak-kami" className="hover:opacity-80 transition-opacity">
+              <a href="#kontak-kami" className={navItemClass('kontak-kami')}>
                 {currentLang === 'id' ? 'Kontak' : 'Contact'}
               </a>
-              <button
-                type="button"
-                onClick={() => setIsArticlesModalOpen(true)}
-                className="hover:opacity-80 transition-opacity cursor-pointer"
-              >
+              <a href="#artikel" className={navItemClass('artikel')}>
                 {currentLang === 'id' ? 'Artikel' : 'Articles'}
-              </button>
+              </a>
             </div>
 
             {/* Language Flag Dropdown */}
@@ -949,30 +1159,90 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           <div className="lg:hidden border-t border-slate-100 bg-white/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-lg text-slate-800">
             <div className="flex flex-col space-y-1 text-[14px] font-medium text-slate-700">
               <a
+                href="/"
+                onClick={goBeranda}
+                className={navMobileClass('beranda')}
+              >
+                Beranda
+              </a>
+              <a
                 href="#tentang-kami"
                 onClick={() => setIsMobileNavOpen(false)}
-                className="px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+                className={navMobileClass('tentang-kami')}
               >
                 Tentang Kami
               </a>
-              <a
-                href="#katalog-event"
-                onClick={() => setIsMobileNavOpen(false)}
-                className="px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                Cari Event & Pelatihan
-              </a>
+
+              {/* Dropdown Event (mobile) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileEventOpen(prev => !prev)}
+                  aria-expanded={isMobileEventOpen}
+                  className={`w-full flex items-center justify-between cursor-pointer ${navMobileClass('katalog-event')}`}
+                >
+                  <span>Event</span>
+                  <Icon name={isMobileEventOpen ? 'expand_less' : 'expand_more'} className="text-[20px]" />
+                </button>
+                {isMobileEventOpen && (
+                  <div className="ml-3 mt-1 pl-3 border-l-2 border-emerald-100 flex flex-col space-y-1">
+                    {EVENT_TIPE_MENU.map(item => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => handleSelectEventTipe(item.key)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-left text-[13.5px] cursor-pointer ${
+                          eventTipe === item.key ? 'bg-emerald-50 text-[#006316] font-bold' : 'hover:bg-slate-100'
+                        }`}
+                      >
+                        <span>{item.id}</span>
+                      </button>
+                    ))}
+
+                    {/* Test: ketuk untuk menampilkan Pretest & Postest */}
+                    <button
+                      type="button"
+                      aria-expanded={isEventTestOpen}
+                      onClick={() => setIsEventTestOpen(prev => !prev)}
+                      className={`flex items-center justify-between px-3 py-2 rounded-lg text-left text-[13.5px] cursor-pointer ${
+                        isEventTestOpen ? 'bg-emerald-50 text-[#006316] font-bold' : 'hover:bg-slate-100'
+                      }`}
+                    >
+                      <span>Test</span>
+                      <Icon name={isEventTestOpen ? 'expand_less' : 'expand_more'} className="text-[18px]" />
+                    </button>
+                    {isEventTestOpen && (
+                      <div className="ml-3 pl-2 border-l-2 border-emerald-100 flex flex-col space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => handleSelectTestFromEvent('pretest')}
+                          className="px-3 py-2 rounded-lg text-left text-[13.5px] hover:bg-slate-100 cursor-pointer"
+                        >
+                          Pretest
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectTestFromEvent('postest')}
+                          className="px-3 py-2 rounded-lg text-left text-[13.5px] hover:bg-slate-100 cursor-pointer"
+                        >
+                          Postest
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <TpqNavMenu
                 variant="mobile"
                 label="Pendidikan"
                 onSelect={handleTpqSelect}
-                onSelectTest={openTest}
                 onNavigate={() => setIsMobileNavOpen(false)}
               />
               <a
                 href="#peta-lokasi"
                 onClick={() => setIsMobileNavOpen(false)}
-                className="px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+                className={navMobileClass('peta-lokasi')}
               >
                 Peta Lokasi
               </a>
@@ -982,27 +1252,24 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                   setIsMobileNavOpen(false);
                   document.getElementById('mitra')?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+                className={navMobileClass('mitra')}
               >
                 Mitra
               </a>
               <a
                 href="#kontak-kami"
                 onClick={() => setIsMobileNavOpen(false)}
-                className="px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+                className={navMobileClass('kontak-kami')}
               >
                 Kontak
               </a>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsMobileNavOpen(false);
-                  setIsArticlesModalOpen(true);
-                }}
-                className="text-left px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              <a
+                href="#artikel"
+                onClick={() => setIsMobileNavOpen(false)}
+                className={navMobileClass('artikel')}
               >
                 Artikel & Panduan Inklusi
-              </button>
+              </a>
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
@@ -1036,6 +1303,24 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           </div>
         )}
       </nav>
+  );
+
+  // Halaman Artikel: tampil menggantikan landing page saat hash = #artikel atau #artikel/<slug>
+  if (articleRoute.open) {
+    return (
+      <ArticlesPage
+        slug={articleRoute.slug}
+        currentLang={currentLang}
+        appSettings={appSettings}
+        navbar={navbar}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen w-full flex flex-col font-sans bg-white text-slate-800">
+      {/* 1. TOP NAVBAR (juga dipakai di halaman Artikel) */}
+      {navbar}
 
       {/* 2. HERO SECTION - With dynamic background support when set in ApplicationSettings */}
       <div
@@ -1313,12 +1598,31 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               setFacilityOnline(false);
               setHeroSearch('');
               setHeroLocation('');
+              setEventTipe('semua');
             }}
             className="px-3.5 py-2 text-[12px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer whitespace-nowrap"
           >
             Reset
           </button>
         </div>
+
+        {/* Penanda tipe event yang aktif dari dropdown navbar */}
+        {eventTipe !== 'semua' && (
+          <div className="mb-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-[12px] font-semibold text-[#006316]">
+            <Icon name="filter_alt" className="text-[16px]" />
+            <span>
+              Tipe Event: {EVENT_TIPE_MENU.find(m => m.key === eventTipe)?.id}
+            </span>
+            <button
+              type="button"
+              onClick={() => setEventTipe('semua')}
+              aria-label="Hapus filter tipe event"
+              className="ml-1 hover:text-emerald-900 cursor-pointer"
+            >
+              <Icon name="close" className="text-[16px]" />
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
@@ -2213,6 +2517,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 <li><a href="#program-tpq" className="hover:text-white transition-colors">Pendidikan Disabilitas </a></li>
                 <li><a href="#peta-lokasi" className="hover:text-white transition-colors">Peta Persebaran Lokasi</a></li>
                 <li><a href="#mitra" className="hover:text-white transition-colors">Mitra & Yayasan Al-Qur'an </a></li>
+                <li><a href="#artikel" className="hover:text-white transition-colors">Artikel & Panduan Inklusi</a></li>
                 <li><a href="#kontak-kami" className="hover:text-white transition-colors">Kontak & Bantuan Layanan</a></li>
               </ul>
             </div>
@@ -2340,71 +2645,6 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           </div>
         </div>
       </footer>
-
-      {/* 9. ARTICLES MODAL */}
-      {isArticlesModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-in zoom-in-95">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
-              <div className="flex items-center gap-2.5">
-                <Icon name="article" className="text-[24px] text-[#0284c7]" />
-                <h3 className="text-[18px] font-bold text-slate-900">Artikel & Panduan Inklusi</h3>
-              </div>
-              <button
-                onClick={() => {
-                  setIsArticlesModalOpen(false);
-                  setSelectedArticle(null);
-                }}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100"
-              >
-                <Icon name="close" className="text-[20px]" />
-              </button>
-            </div>
-
-            {selectedArticle ? (
-              <div>
-                <button
-                  onClick={() => setSelectedArticle(null)}
-                  className="text-[12px] font-semibold text-sky-600 hover:underline flex items-center gap-1 mb-3 cursor-pointer"
-                >
-                  <Icon name="arrow_back" className="text-[16px]" />
-                  <span>Kembali ke daftar artikel</span>
-                </button>
-                <span className="px-2.5 py-0.5 rounded-full bg-sky-50 text-sky-800 text-[11px] font-bold">
-                  {selectedArticle.category}
-                </span>
-                <h4 className="text-[20px] font-bold text-slate-900 mt-2 mb-1">{selectedArticle.title}</h4>
-                <p className="text-[12px] text-slate-400 mb-4">{selectedArticle.date}</p>
-                <div className="text-[14px] text-slate-700 leading-relaxed space-y-3">
-                  <p>{selectedArticle.content}</p>
-                  <p>
-                    Kementerian Agama dan lembaga mitra terus memperluas jaringan pendampingan dan cetakan mushaf ramah disabilitas di seluruh wilayah Indonesia agar tidak ada sahabat disabilitas yang tertinggal dalam mengakses ilmu Al-Quran.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {articlesData.map((art, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => setSelectedArticle(art)}
-                    className="p-4 rounded-2xl border border-slate-200 hover:border-sky-300 hover:bg-sky-50/30 transition-all cursor-pointer"
-                  >
-                    <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
-                      {art.category}
-                    </span>
-                    <h4 className="text-[15px] font-bold text-slate-900 mt-1.5 mb-1 hover:text-sky-700 transition-colors">
-                      {art.title}
-                    </h4>
-                    <p className="text-[12px] text-slate-500 line-clamp-2">{art.content}</p>
-                    <span className="text-[11px] text-slate-400 mt-2 block">{art.date}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* 10. DETAIL & REGISTRATION MODAL (Matching Screenshot 2) */}
       {activeModalEvent && (

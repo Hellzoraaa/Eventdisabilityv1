@@ -94,6 +94,9 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
   const toggleSelection = (items: string[], setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) =>
     setter(items.includes(value) ? items.filter(item => item !== value) : [...items, value]);
   const [jenisPendidikan, setJenisPendidikan] = useState('');
+  // Jika memilih "Lainnya", jenis pendidikan diketik sendiri oleh pengguna.
+  const [jenisLainnya, setJenisLainnya] = useState('');
+  const jenisPendidikanFinal = jenisPendidikan === 'Lainnya' ? jenisLainnya.trim() : jenisPendidikan;
   const [persyaratanPendidikan, setPersyaratanPendidikan] = useState(PERSYARATAN_DEFAULT);
   const [documentationPhotos, setDocumentationPhotos] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState('');
@@ -132,7 +135,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
     setEditingStatus(null);
     setForm({ ...EMPTY_FORM, provinsi: currentUser.province || '', kota: currentUser.city || '' });
     setKategoriPendidikan([]); setDisabilitasPendidikan([]);
-    setJenisPendidikan(''); setPersyaratanPendidikan(PERSYARATAN_DEFAULT); setDocumentationPhotos([]); setPhotoError('');
+    setJenisPendidikan(''); setJenisLainnya(''); setPersyaratanPendidikan(PERSYARATAN_DEFAULT); setDocumentationPhotos([]); setPhotoError('');
     setError(null);
     setSuccess(null);
   };
@@ -158,6 +161,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
     setSuccess(null);
 
     if (!jenisPendidikan) { setError('Pilih jenis pendidikan terlebih dahulu.'); return; }
+    if (jenisPendidikan === 'Lainnya' && !jenisLainnya.trim()) { setError('Ketik jenis pendidikan pada kolom Lainnya.'); return; }
     if (form.noWaLembaga.replace(/\D/g, '').length < 9) { setError('Nomor WhatsApp lembaga wajib diisi dengan nomor yang valid, contoh 081234567890.'); return; }
     const kuota = Number(form.kuotaPeserta);
     if (!Number.isInteger(kuota) || kuota < 1) { setError('Kuota peserta wajib diisi dengan angka bulat minimal 1.'); return; }
@@ -174,7 +178,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
         jenisTPQ: kategoriPendidikan.some(k => findKategori(k)?.jenis === 'braille') ? 'braille' : (kategoriPendidikan.length ? 'isyarat' : form.jenisTPQ),
         kuotaPeserta: kuota,
         targetPeserta: disabilitasPendidikan.join(', '),
-        tujuanPembelajaran: `TPQ_META:${JSON.stringify({ kategoriPendidikan, jenisPesertaPendidikan: disabilitasPendidikan, jenisPendidikan, persyaratan: persyaratanPendidikan })}`,
+        tujuanPembelajaran: `TPQ_META:${JSON.stringify({ kategoriPendidikan, jenisPesertaPendidikan: disabilitasPendidikan, jenisPendidikan: jenisPendidikanFinal, persyaratan: persyaratanPendidikan })}`,
         tanggalMulai: form.tanggalMulai,
         tanggalSelesai: form.tanggalSelesai,
         benefitProgram: '',
@@ -283,7 +287,12 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
       koordinat: `${program.latitude}, ${program.longitude}`,
       noWaLembaga: program.noWaLembaga || program.mitraPhone || '',
     });
-    try { const raw = String(program.tujuanPembelajaran || ''); setJenisPendidikan(raw.startsWith('TPQ_META:') ? (JSON.parse(raw.slice(9)).jenisPendidikan || 'TPQ') : 'TPQ'); } catch { setJenisPendidikan('TPQ'); }
+    try {
+      const raw = String(program.tujuanPembelajaran || '');
+      const saved: string = raw.startsWith('TPQ_META:') ? (JSON.parse(raw.slice(9)).jenisPendidikan || 'TPQ') : 'TPQ';
+      if (JENIS_PENDIDIKAN_OPTIONS.includes(saved)) { setJenisPendidikan(saved); setJenisLainnya(''); }
+      else { setJenisPendidikan('Lainnya'); setJenisLainnya(saved); }
+    } catch { setJenisPendidikan('TPQ'); setJenisLainnya(''); }
     setDocumentationPhotos((program as any).fotoDokumentasi || []);
     setError(null);
     setSuccess(null);
@@ -360,8 +369,8 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
           <div><h2 className="text-[20px] font-semibold text-on-surface">{editingId ? 'Perbaiki Pengajuan Pendidikan' : 'Daftarkan Pendidikan'}</h2><p className="text-[13px] text-on-surface-variant mt-1">Formulir pengajuan lembaga pendidikan Al-Qur’an untuk sahabat disabilitas. Pengajuan akan ditinjau Super Admin.</p></div>
           <div className="request-grid">
 
-            <div className="request-field"><label>Jenis Pendidikan *</label><select required value={jenisPendidikan} onChange={e=>setJenisPendidikan(e.target.value)}><option value="" disabled>Pilih jenis pendidikan</option>{JENIS_PENDIDIKAN_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}</select><small>Pilih jenis pendidikan terlebih dahulu sebelum mengisi nama lembaga.</small></div>
-            <div className="request-field"><label>Nama Lembaga Pendidikan *</label><input required disabled={!jenisPendidikan} value={form.namaProgram} onChange={e=>update('namaProgram',e.target.value)} placeholder={jenisPendidikan ? `Nama ${jenisPendidikan}` : 'Pilih jenis pendidikan dulu'} /></div>
+            <div className="request-field"><label>Jenis Pendidikan *</label><select required value={jenisPendidikan} onChange={e=>setJenisPendidikan(e.target.value)}><option value="" disabled>Pilih jenis pendidikan</option>{JENIS_PENDIDIKAN_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}</select>{jenisPendidikan === 'Lainnya' && <input required value={jenisLainnya} onChange={e=>setJenisLainnya(e.target.value)} maxLength={60} placeholder="Ketik jenis pendidikan, contoh: Rumah Tahfidz" />}<small>Pilih jenis pendidikan terlebih dahulu sebelum mengisi nama lembaga.</small></div>
+            <div className="request-field"><label>Nama Lembaga Pendidikan *</label><input required disabled={!jenisPendidikan} value={form.namaProgram} onChange={e=>update('namaProgram',e.target.value)} placeholder={jenisPendidikanFinal ? `Nama ${jenisPendidikanFinal}` : 'Pilih jenis pendidikan dulu'} /></div>
             <div className="request-field"><label>Nomor WhatsApp Lembaga *</label><input required type="tel" inputMode="tel" value={form.noWaLembaga} onChange={e=>update('noWaLembaga',e.target.value)} placeholder="081234567890" /><small>Nomor ini dihubungi peserta lewat tombol WhatsApp setelah mereka mendaftar.</small></div>
             <div className="request-field"><label>Jenis Peserta / Disabilitas</label><div className="request-options" role="group" aria-label="Pilih jenis peserta">
               {TPQ_MENU.map(group => <label key={group.label} className="!items-start rounded-lg border border-slate-200 p-2.5"><input type="checkbox" checked={disabilitasPendidikan.includes(group.label)} onChange={() => toggleSelection(disabilitasPendidikan, setDisabilitasPendidikan, group.label)} /> <span>{group.label}</span></label>)}

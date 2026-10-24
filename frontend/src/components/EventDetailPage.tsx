@@ -363,16 +363,6 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
       activeTab === tab ? 'border-[#005a71] text-[#005a71]' : 'border-transparent text-slate-500 hover:text-slate-900'
     }`;
 
-  const breadcrumb = (
-    <nav aria-label="Navigasi halaman" className="flex items-center gap-1.5 text-[12px] text-slate-500 flex-wrap">
-      <button type="button" onClick={goHome} className="hover:text-slate-900 hover:underline cursor-pointer">Beranda</button>
-      <Icon name="chevron_right" className="text-[14px]" />
-      <span>Event</span>
-      <Icon name="chevron_right" className="text-[14px]" />
-      <span className="text-slate-800 font-semibold truncate max-w-[60vw] sm:max-w-md" aria-current="page">{event.namaKegiatan}</span>
-    </nav>
-  );
-
   /* ---------- Layar sukses ---------- */
   if (registered) {
     const { participant, waLink } = registered;
@@ -447,7 +437,6 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
       <div className="min-h-screen w-full bg-slate-50">
         {topBar}
         <main className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-5">
-          {breadcrumb}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-8">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
@@ -584,8 +573,6 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
       {topBar}
 
       <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-        {breadcrumb}
-
         {/* Judul halaman */}
         <header className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
