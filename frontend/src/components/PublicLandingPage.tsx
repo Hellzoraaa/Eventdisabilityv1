@@ -4,6 +4,7 @@ import { TrainingProposal, Participant, QuranCommunity, DisabilityMaster, EventC
 import { QuranEmblemLogo } from './QuranEmblemLogo.tsx';
 import { PetaPersebaran } from './PetaPersebaran.tsx';
 import { PartnerLogo } from './PartnerLogo.tsx';
+import { AnimatedCounter } from './AnimatedCounter.tsx';
 import { VerifiedBadge } from './VerifiedBadge.tsx';
 import { EventDetailModal } from './EventDetailModal.tsx';
 import { openEventPage } from './EventDetailPage.tsx';
@@ -63,6 +64,25 @@ const EnglandFlag: React.FC<{ className?: string }> = ({ className = "w-[20px] h
   </svg>
 );
 
+// Ubah tanggal "2026-10-24" (atau "2026-10-24T00:00:00Z") menjadi "24-10-2026".
+// Jika formatnya tidak dikenali, nilai asli dikembalikan apa adanya.
+const formatTanggal = (value?: string | null): string => {
+  if (!value) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value).trim());
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : String(value);
+};
+
+// Kartu statistik dengan angka yang menghitung naik dari 0
+const StatCard: React.FC<{ value: number; label: string; className?: string }> = ({ value, label, className = '' }) => (
+  <div className={`bg-white border border-[#DCE8DE] rounded-2xl p-6 text-center shadow-sm ${className}`}>
+    <AnimatedCounter
+      value={value}
+      className="block text-4xl sm:text-5xl font-extrabold text-[#006316] leading-none mb-3"
+    />
+    <span className="block text-[13px] font-medium text-slate-600 leading-normal">{label}</span>
+  </div>
+);
+
 export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   events,
   tpqPrograms = [],
@@ -110,6 +130,18 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
         })
         .catch(console.error);
     }
+  }, []);
+
+  // Total peserta yang sudah bergabung (endpoint publik, hanya mengembalikan angka)
+  const [totalPeserta, setTotalPeserta] = useState(0);
+  useEffect(() => {
+    fetch('/api/public/stats')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        const n = Number(data?.totalPeserta);
+        if (Number.isFinite(n)) setTotalPeserta(n);
+      })
+      .catch(console.error);
   }, []);
 
   const activeEventCategories = useMemo(() => {
@@ -1046,42 +1078,33 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
           </div>
 
-          {/* 3 Counter Metrics Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-12">
-
-            <div className="bg-white border border-[#DCE8DE] rounded-2xl p-6 text-center shadow-sm">
-              <span className="block text-4xl sm:text-5xl font-extrabold text-[#006316] leading-none mb-3">
-                {activeEvents.length > 0 ? activeEvents.length : 18}
-              </span>
-
-              <span className="block text-[13px] font-medium text-slate-600 leading-normal">
-                Event Yang Sedang Berlangsung
-              </span>
-            </div>
-            <div className="bg-white/95 border border-white/20 rounded-2xl p-6 text-center shadow-sm">
-              <span className="block text-4xl sm:text-5xl font-extrabold text-[#006316] mb-2">
-                {activeDisabilities.length > 0
-                  ? activeDisabilities.length
-                  : disabilities.length > 0
-                    ? disabilities.length
-                    : 2}
-              </span>
-
-              <span className="text-[13px] font-medium text-slate-600">
-                Ragam Kategori Peserta
-              </span>
-            </div>
-
-            <div className="bg-white/95 border border-white/20 rounded-2xl p-6 text-center shadow-sm">
-              <span className="block text-4xl sm:text-5xl font-extrabold text-[#006316] mb-2">
-                {new Set(communities.map(c => c.provinsi)).size || 8}
-              </span>
-
-              <span className="text-[13px] font-medium text-slate-600">
-                Cakupan Lokasi Event & Pendidikan
-              </span>
-            </div>
-
+          {/* Counter Metrics: 3 kartu di baris atas, 2 kartu di tengah baris bawah */}
+          <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 sm:gap-6 mb-12">
+            <StatCard
+              className="sm:col-span-2"
+              value={activeEvents.length}
+              label="Event Yang Sedang Berlangsung"
+            />
+            <StatCard
+              className="sm:col-span-2"
+              value={activeDisabilities.length > 0 ? activeDisabilities.length : disabilities.length}
+              label="Ragam Kategori Peserta"
+            />
+            <StatCard
+              className="sm:col-span-2"
+              value={new Set(communities.map(c => c.provinsi)).size}
+              label="Cakupan Lokasi Event & Pendidikan"
+            />
+            <StatCard
+              className="sm:col-span-2 sm:col-start-2"
+              value={totalPeserta}
+              label="Peserta Yang Sudah Bergabung"
+            />
+            <StatCard
+              className="sm:col-span-2 sm:col-start-4"
+              value={communities.length}
+              label="Mitra Yang Sudah Bergabung"
+            />
           </div>
 
           {/* Two Cards: Visi Kami & Misi Kami */}
@@ -1357,7 +1380,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[12px] text-slate-600">
                     <span className="flex items-center gap-1.5">
                       <Icon name="calendar_month" className="text-[16px] text-slate-400" />
-                      <span>{event.tanggalKegiatan}</span>
+                      <span>{formatTanggal(event.tanggalKegiatan)}</span>
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Icon name="menu_book" className="text-[16px] text-slate-400" />
@@ -1365,7 +1388,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Icon name="location_on" className="text-[16px] text-slate-400" />
-                      <span>{event.metodeBelajar || 'Self-Paced (Mandiri)'} / {event.kota}</span>
+                      <span>{event.kota || event.provinsi || '-'}</span>
                     </span>
                   </div>
 
@@ -1378,7 +1401,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                     </span>
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[11px] border border-slate-200/80 font-medium">
                       <Icon name="info" className="text-[14px] text-slate-500" />
-                      <span>Batas Pendaftaran {event.batasPendaftaran || 'Belum ditentukan'}</span>
+                      <span>Batas Pendaftaran {formatTanggal(event.batasPendaftaran) || 'Belum ditentukan'}</span>
                     </span>
                   </div>
                 </div>
@@ -2485,7 +2508,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                           >
                             <div>
                               <h5 className="font-bold text-[13px] text-slate-900">{ev.namaKegiatan}</h5>
-                              <span className="text-[11px] text-slate-500">{ev.tanggalKegiatan} • {ev.kota}</span>
+                              <span className="text-[11px] text-slate-500">{formatTanggal(ev.tanggalKegiatan)} • {ev.kota}</span>
                             </div>
                             <button
                               onClick={() => {

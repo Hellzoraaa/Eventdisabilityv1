@@ -1942,6 +1942,19 @@ async function authorizeParticipantWrite(req: any, res: any, participant: { even
   return true;
 }
 
+// Statistik publik untuk landing page: hanya angka total, tanpa data pribadi peserta.
+app.get('/api/public/stats', async (_req, res) => {
+  try {
+    const pool = await getPool();
+    const [rows] = await pool.query("SELECT COUNT(*) AS total FROM participants WHERE status_kehadiran <> 'batal'");
+    const total = Array.isArray(rows) ? Number((rows[0] as any)?.total ?? 0) : 0;
+    return res.json({ totalPeserta: total });
+  } catch (error) {
+    console.error('[Public Stats GET] error:', error);
+    return res.status(500).json({ error: 'Gagal mengambil statistik.' });
+  }
+});
+
 app.get('/api/participants', async (req, res) => {
   try {
     const pool = await getPool();
