@@ -19,7 +19,8 @@ interface SidebarProps {
     | 'approvals'
     | 'participants'
     | 'disabilities'
-    | 'settings';
+    | 'settings'
+    | 'articles';
   currentUser: User | null;
   appSettings?: ApplicationSettings;
   onNavigate: (view: any) => void;
@@ -186,6 +187,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className={navItemClass(isItemActive('manage_tpq'))}
             >
               <span>Kelola Pendidikan</span>
+            </button>
+          )}
+
+          {/* Manajemen Artikel (Super Admin only) */}
+          {currentUser && currentUser.role === 'superadmin' && (
+            <button onClick={() => handleItemClick(() => onNavigate('articles'))} className={navItemClass(isItemActive('articles'))}>
+              <span>Manajemen Artikel</span>
             </button>
           )}
 

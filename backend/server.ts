@@ -2717,6 +2717,8 @@ async function ensureRevisionSchema() {
     created_at timestamp NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id), UNIQUE KEY kata_id_string (kata_id_string)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  // Gambar kosakata: boleh berupa tautan (https://...) atau gambar kecil yang diunggah (data URL).
+  await ensureColumn(pool, 'kosakata_isyarat', 'gambar_url', 'mediumtext NULL');
 }
 
 async function requireStaff(req: any, res: any) {
@@ -2734,6 +2736,210 @@ async function requireSuperadminOnly(req: any, res: any) {
   if (user.role !== 'superadmin') { res.status(403).json({ error: 'Bank soal hanya dapat dikelola Super Admin.' }); return null; }
   return user;
 }
+
+// Tabel Manajemen Artikel dibuat otomatis saat server dimulai.
+// Dengan demikian, instalasi fitur artikel tidak memerlukan tabel yang dibuat manual terlebih dahulu.
+async function ensureArticleTables() {
+  const pool = await getPool();
+  await pool.query(`CREATE TABLE IF NOT EXISTS articles (
+    id VARCHAR(36) NOT NULL,
+    title VARCHAR(180) NOT NULL,
+    category VARCHAR(80) NOT NULL,
+    excerpt VARCHAR(300) NOT NULL DEFAULT '',
+    content MEDIUMTEXT NOT NULL,
+    status ENUM('draft','published') NOT NULL DEFAULT 'draft',
+    created_by VARCHAR(100) DEFAULT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    published_at TIMESTAMP NULL DEFAULT NULL,
+    PRIMARY KEY (id),
+    KEY idx_articles_status_updated (status, updated_at),
+    KEY idx_articles_category (category)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS article_settings (
+    setting_key VARCHAR(50) NOT NULL,
+    setting_value JSON NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (setting_key)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  await pool.query(
+    `INSERT INTO article_settings (setting_key, setting_value) VALUES (?, ?), (?, ?)
+     ON DUPLICATE KEY UPDATE setting_key = VALUES(setting_key)`,
+    [
+      'categories', JSON.stringify(['Pedoman Braille', 'Panduan Braille', 'Pedoman Isyarat', 'Panduan Isyarat', 'Kosa Isyarat']),
+      'fonts', JSON.stringify(['Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Courier New']),
+    ]
+  );
+}
+
+function mapDbArticle(row: any) {
+  return {
+    id: String(row.id),
+    title: row.title ?? '',
+    category: row.category ?? '',
+    excerpt: row.excerpt ?? '',
+    content: row.content ?? '',
+    status: row.status === 'published' ? 'published' : 'draft',
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
+    publishedAt: row.published_at ? new Date(row.published_at).toISOString() : null,
+  };
+}
+
+function sanitizeArticleHtml(value: unknown): string {
+  let html = String(value ?? '');
+  // Pertahanan dasar untuk konten rich-text yang disimpan oleh editor admin.
+  html = html.replace(/<\s*(script|style|iframe|object|embed|form|input|button)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+  html = html.replace(/<\s*(script|style|iframe|object|embed|form|input|button)\b[^>]*\/?>/gi, '');
+  html = html.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  html = html.replace(/(href|src)\s*=\s*(["'])\s*javascript:[\s\S]*?\2/gi, '$1="#"');
+  html = html.replace(/javascript\s*:/gi, '');
+  return html;
+}
+
+function normalizeArticleInput(body: any) {
+  const title = String(body?.title ?? '').trim().slice(0, 180);
+  const category = String(body?.category ?? '').trim().slice(0, 80);
+  const excerpt = String(body?.excerpt ?? '').trim().slice(0, 300);
+  const content = sanitizeArticleHtml(body?.content);
+  const status = body?.status === 'published' ? 'published' : 'draft';
+  return { title, category, excerpt, content, status };
+}
+
+// Endpoint publik: hanya artikel yang benar-benar berstatus published.
+app.get('/api/articles', async (req, res) => {
+  try {
+    const pool = await getPool();
+    const category = String(req.query.category ?? '').trim();
+    const [rows] = await pool.query(
+      `SELECT id, title, category, excerpt, content, status, created_at, updated_at, published_at
+         FROM articles
+        WHERE status = 'published' AND (? = '' OR category = ?)
+        ORDER BY COALESCE(published_at, updated_at) DESC`,
+      [category, category]
+    );
+    return res.json({ articles: (rows as any[]).map(mapDbArticle) });
+  } catch (error) {
+    console.error('[Public Articles GET]', error);
+    return res.status(500).json({ error: 'Gagal mengambil artikel publik.' });
+  }
+});
+
+// Endpoint admin: semua artikel, termasuk draf. Hanya Super Admin.
+app.get('/api/admin/articles', async (req, res) => {
+  try {
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
+    const pool = await getPool();
+    const [rows] = await pool.query(
+      `SELECT id, title, category, excerpt, content, status, created_at, updated_at, published_at
+         FROM articles ORDER BY updated_at DESC`
+    );
+    return res.json({ articles: (rows as any[]).map(mapDbArticle) });
+  } catch (error) {
+    console.error('[Admin Articles GET]', error);
+    return res.status(500).json({ error: 'Gagal mengambil artikel dari database.' });
+  }
+});
+
+app.post('/api/admin/articles', async (req, res) => {
+  try {
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
+    const article = normalizeArticleInput(req.body);
+    if (!article.title || !article.category || !article.content.replace(/<[^>]*>/g, '').trim()) {
+      return res.status(400).json({ error: 'Judul, kategori, dan isi artikel wajib diisi.' });
+    }
+    const id = crypto.randomUUID();
+    const pool = await getPool();
+    await pool.query(
+      `INSERT INTO articles (id, title, category, excerpt, content, status, created_by, published_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)` ,
+      [id, article.title, article.category, article.excerpt, article.content, article.status, user.id, article.status === 'published' ? new Date() : null]
+    );
+    const [rows] = await pool.query('SELECT * FROM articles WHERE id = ? LIMIT 1', [id]);
+    return res.status(201).json({ article: mapDbArticle((rows as any[])[0]) });
+  } catch (error) {
+    console.error('[Admin Articles POST]', error);
+    return res.status(500).json({ error: 'Gagal menyimpan artikel ke database.' });
+  }
+});
+
+app.put('/api/admin/articles/:id', async (req, res) => {
+  try {
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
+    const article = normalizeArticleInput(req.body);
+    if (!article.title || !article.category || !article.content.replace(/<[^>]*>/g, '').trim()) {
+      return res.status(400).json({ error: 'Judul, kategori, dan isi artikel wajib diisi.' });
+    }
+    const pool = await getPool();
+    const [before] = await pool.query('SELECT id, published_at FROM articles WHERE id = ? LIMIT 1', [req.params.id]);
+    if (!(before as any[]).length) return res.status(404).json({ error: 'Artikel tidak ditemukan.' });
+    await pool.query(
+      `UPDATE articles SET title = ?, category = ?, excerpt = ?, content = ?, status = ?,
+       published_at = CASE WHEN ? = 'published' THEN COALESCE(published_at, CURRENT_TIMESTAMP) ELSE NULL END
+       WHERE id = ?`,
+      [article.title, article.category, article.excerpt, article.content, article.status, article.status, req.params.id]
+    );
+    const [rows] = await pool.query('SELECT * FROM articles WHERE id = ? LIMIT 1', [req.params.id]);
+    return res.json({ article: mapDbArticle((rows as any[])[0]) });
+  } catch (error) {
+    console.error('[Admin Articles PUT]', error);
+    return res.status(500).json({ error: 'Gagal memperbarui artikel di database.' });
+  }
+});
+
+app.delete('/api/admin/articles/:id', async (req, res) => {
+  try {
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
+    const pool = await getPool();
+    const [result] = await pool.query('DELETE FROM articles WHERE id = ?', [req.params.id]);
+    if (!(result as any).affectedRows) return res.status(404).json({ error: 'Artikel tidak ditemukan.' });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Admin Articles DELETE]', error);
+    return res.status(500).json({ error: 'Gagal menghapus artikel dari database.' });
+  }
+});
+
+app.get('/api/admin/article-settings', async (req, res) => {
+  try {
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
+    const pool = await getPool();
+    const [rows] = await pool.query('SELECT setting_key, setting_value FROM article_settings WHERE setting_key IN (?, ?)', ['categories', 'fonts']);
+    const settings: Record<string, any> = {};
+    for (const row of rows as any[]) settings[row.setting_key] = jsonParse(row.setting_value, []);
+    return res.json({
+      categories: Array.isArray(settings.categories) && settings.categories.length ? settings.categories : ['Pedoman Braille','Panduan Braille','Pedoman Isyarat','Panduan Isyarat','Kosa Isyarat'],
+      fonts: Array.isArray(settings.fonts) && settings.fonts.length ? settings.fonts : ['Arial','Georgia','Times New Roman','Verdana','Tahoma','Trebuchet MS','Courier New'],
+    });
+  } catch (error) {
+    console.error('[Article Settings GET]', error);
+    return res.status(500).json({ error: 'Gagal mengambil pengaturan artikel.' });
+  }
+});
+
+app.put('/api/admin/article-settings', async (req, res) => {
+  try {
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
+    const categories = Array.isArray(req.body?.categories)
+      ? [...new Set(req.body.categories.map((v: unknown) => String(v).trim()).filter(Boolean))].slice(0, 100)
+      : [];
+    const fonts = Array.isArray(req.body?.fonts)
+      ? [...new Set(req.body.fonts.map((v: unknown) => String(v).trim()).filter(Boolean))].slice(0, 100)
+      : [];
+    if (!categories.length || !fonts.length) return res.status(400).json({ error: 'Minimal satu kategori dan satu font harus tersedia.' });
+    const pool = await getPool();
+    await pool.query(
+      `INSERT INTO article_settings (setting_key, setting_value) VALUES (?, ?), (?, ?)
+       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+      ['categories', JSON.stringify(categories), 'fonts', JSON.stringify(fonts)]
+    );
+    return res.json({ success: true, categories, fonts });
+  } catch (error) {
+    console.error('[Article Settings PUT]', error);
+    return res.status(500).json({ error: 'Gagal menyimpan pengaturan artikel ke database.' });
+  }
+});
+
 
 // ---- Bank Soal ----
 app.get('/api/bank-soal', async (req, res) => {
@@ -2959,7 +3165,14 @@ app.get('/api/kosakata-isyarat', async (_req, res) => {
   try {
     const pool = await getPool();
     const [rows] = await pool.query('SELECT * FROM kosakata_isyarat ORDER BY kata ASC');
-    return res.json({ kosakata: (rows as any[]).map(r => ({ id: r.kata_id_string, kata: r.kata, kategori: r.kategori ?? '', deskripsi: r.deskripsi ?? '', videoUrl: r.video_url ?? '' })) });
+    return res.json({ kosakata: (rows as any[]).map(r => ({
+      id: r.kata_id_string,
+      kata: r.kata,
+      kategori: r.kategori ?? '',
+      deskripsi: r.deskripsi ?? '',
+      videoUrl: r.video_url ?? '',
+      gambarUrl: r.gambar_url ?? '',
+    })) });
   } catch (e) { console.error('[Kosakata GET]', e); return res.status(500).json({ error: 'Gagal mengambil kosakata isyarat.' }); }
 });
 
@@ -2970,10 +3183,14 @@ app.post('/api/kosakata-isyarat', async (req, res) => {
     if (!String(b.kata ?? '').trim()) return res.status(400).json({ error: 'Kata wajib diisi.' });
     const videoUrl = String(b.videoUrl ?? '').trim();
     if (videoUrl && !/^https?:\/\//i.test(videoUrl)) return res.status(400).json({ error: 'Tautan video harus diawali http:// atau https://' });
+    // Gambar: tautan http(s) atau gambar kecil hasil unggahan (data URL). Format lain ditolak.
+    const gambarUrl = String(b.gambarUrl ?? '').trim();
+    if (gambarUrl && !/^(https?:\/\/|data:image\/(png|jpe?g|webp|gif);base64,)/i.test(gambarUrl)) return res.status(400).json({ error: 'Gambar tidak valid. Gunakan file gambar atau tautan http(s).' });
+    if (gambarUrl.length > 1_500_000) return res.status(400).json({ error: 'Ukuran gambar terlalu besar.' });
     const pool = await getPool();
     const id = `kata_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    await pool.query('INSERT INTO kosakata_isyarat (kata_id_string, kata, kategori, deskripsi, video_url) VALUES (?,?,?,?,?)',
-      [id, String(b.kata).trim(), b.kategori || null, b.deskripsi || null, videoUrl || null]);
+    await pool.query('INSERT INTO kosakata_isyarat (kata_id_string, kata, kategori, deskripsi, video_url, gambar_url) VALUES (?,?,?,?,?,?)',
+      [id, String(b.kata).trim(), b.kategori || null, b.deskripsi || null, videoUrl || null, gambarUrl || null]);
     return res.status(201).json({ success: true, id });
   } catch (e) { console.error('[Kosakata POST]', e); return res.status(500).json({ error: 'Gagal menyimpan kosakata.' }); }
 });
@@ -3013,6 +3230,7 @@ async function startServer() {
       await ensureInitialPasswords();
       await ensurePasswordResetTable();
       await ensureRevisionSchema();
+      await ensureArticleTables();
       await ensureSiteVisitsTable(await getPool());
       console.log('[MySQL] Database siap dan tersinkronisasi.');
     } catch (err) {

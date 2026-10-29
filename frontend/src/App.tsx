@@ -37,6 +37,7 @@ import { applyThemeColors } from './utils/themeColors.ts';
 import { EventDetailPage, parseEventRoute } from './components/EventDetailPage.tsx';
 import { TPQDetailPage, parseTPQRoute } from './components/TPQHomeSection.tsx';
 import { TestPage, parseTestRoute } from './components/TestPage.tsx';
+import { ArticleManagement } from './components/ArticleManagement.tsx';
 
 export default function App() {
   // Views: 'events' | 'mitra' | 'superadmin' | 'map' | 'users' | 'reports' | 'manage_events' | 'participants' | 'disabilities' | 'settings'
@@ -55,6 +56,7 @@ export default function App() {
     | 'participants'
     | 'disabilities'
     | 'settings'
+    | 'articles'
   >('events');
   const [eventRoute, setEventRoute] = useState(() => parseEventRoute(window.location.hash));
   const [tpqRoute, setTpqRoute] = useState(() => parseTPQRoute(window.location.hash));
@@ -912,6 +914,10 @@ export default function App() {
                 />
               </section>
             </div>
+          )}
+
+          {activeView === 'articles' && currentUser?.role === 'superadmin' && (
+            <ArticleManagement />
           )}
 
           {activeView === 'mitra' && (

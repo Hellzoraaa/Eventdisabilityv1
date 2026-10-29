@@ -10,7 +10,7 @@ import { EventDetailModal } from './EventDetailModal.tsx';
 import { openEventPage } from './EventDetailPage.tsx';
 import { TpqNavMenu } from './TpqNavMenu.tsx';
 import { TPQHomeSection, openTPQPage, isTPQPublished, tpqToMapItem, isTPQMapId, tpqIdFromMapId } from './TPQHomeSection.tsx';
-import { ArticlesPage, parseArticleHash } from './ArticlesPage.tsx';
+import { ArticlesPage, parseArticleHash, ARTIKEL_MENU, articleHref } from './ArticlesPage.tsx';
 
 interface PublicLandingPageProps {
   events: TrainingProposal[];
@@ -307,6 +307,23 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
 
+  // Dropdown navbar Artikel (Braille / Isyarat > Pedoman / Panduan / Kosa Isyarat)
+  const [isArtikelDropdownOpen, setIsArtikelDropdownOpen] = useState(false);
+  const [expandedArtikelGroup, setExpandedArtikelGroup] = useState<string | null>(null);
+  const [isMobileArtikelOpen, setIsMobileArtikelOpen] = useState(false);
+  const [expandedMobileArtikelGroup, setExpandedMobileArtikelGroup] = useState<string | null>(null);
+  const artikelDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideArtikel = (e: MouseEvent) => {
+      if (artikelDropdownRef.current && !artikelDropdownRef.current.contains(e.target as Node)) {
+        setIsArtikelDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideArtikel);
+    return () => document.removeEventListener('mousedown', handleOutsideArtikel);
+  }, []);
+
   // Map Filter state
   const [mapSearch, setMapSearch] = useState('');
   const [mapCategory, setMapCategory] = useState<'all' | 'tunanetra' | 'tunarungu' | 'tunadaksa' | 'intelektual'>('all');
@@ -326,7 +343,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   const [copiedContactItem, setCopiedContactItem] = useState<string | null>(null);
   const [activeContactFaq, setActiveContactFaq] = useState<number | null>(null);
 
-  // Halaman Artikel (#artikel dan #artikel/<slug>)
+  // Halaman Artikel (#artikel, #artikel/braille, #artikel/isyarat/kosa-isyarat, #artikel/<slug>)
   const [articleRoute, setArticleRoute] = useState(() => parseArticleHash(window.location.hash));
   useEffect(() => {
     const onHashChange = () => setArticleRoute(parseArticleHash(window.location.hash));
@@ -1024,9 +1041,71 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               <a href="#kontak-kami" className={navItemClass('kontak-kami')}>
                 {currentLang === 'id' ? 'Kontak' : 'Contact'}
               </a>
-              <a href="#artikel" className={navItemClass('artikel')}>
-                {currentLang === 'id' ? 'Artikel' : 'Articles'}
-              </a>
+
+              {/* Dropdown Artikel: Braille / Isyarat > Pedoman / Panduan / Kosa Isyarat */}
+              <div ref={artikelDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsArtikelDropdownOpen(prev => !prev)}
+                  aria-haspopup="menu"
+                  aria-expanded={isArtikelDropdownOpen}
+                  className={`${navItemClass('artikel')} inline-flex items-center gap-1 cursor-pointer`}
+                >
+                  <span>{currentLang === 'id' ? 'Artikel' : 'Articles'}</span>
+                  <Icon
+                    name="keyboard_arrow_down"
+                    className="text-[18px] leading-none transition-transform duration-200"
+                    style={{ transform: isArtikelDropdownOpen ? 'rotate(180deg)' : 'none' }}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {isArtikelDropdownOpen && (
+                  <div
+                    role="menu"
+                    aria-label="Menu Artikel"
+                    className="absolute left-0 top-full mt-3 w-60 bg-white rounded-2xl p-2 shadow-2xl border border-slate-100 z-50 animate-in fade-in-50 zoom-in-95 text-slate-800"
+                  >
+                    <a
+                      href={articleHref()}
+                      role="menuitem"
+                      onClick={() => setIsArtikelDropdownOpen(false)}
+                      className="block px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      {currentLang === 'id' ? 'Semua Artikel' : 'All Articles'}
+                    </a>
+                    {ARTIKEL_MENU.map(g => (
+                      <div key={g.jenis} className="mt-1">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          aria-expanded={expandedArtikelGroup === g.jenis}
+                          onClick={() => setExpandedArtikelGroup(prev => prev === g.jenis ? null : g.jenis)}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-[13.5px] font-bold text-[#006316] hover:bg-emerald-50 transition-colors ${expandedArtikelGroup === g.jenis ? 'bg-emerald-50' : ''}`}
+                        >
+                          <span>{g.label}</span>
+                          <Icon name={expandedArtikelGroup === g.jenis ? 'expand_less' : 'expand_more'} className="text-[18px]" />
+                        </button>
+                        {expandedArtikelGroup === g.jenis && (
+                          <div className="ml-3 pl-2 border-l-2 border-emerald-100">
+                            {g.bagian.map(b => (
+                              <a
+                                key={b.key}
+                                href={articleHref(g.jenis, b.key)}
+                                role="menuitem"
+                                onClick={() => setIsArtikelDropdownOpen(false)}
+                                className="block px-3 py-2 rounded-xl text-[13px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                              >
+                                {b.label}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Language Flag Dropdown */}
@@ -1263,13 +1342,57 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               >
                 Kontak
               </a>
-              <a
-                href="#artikel"
-                onClick={() => setIsMobileNavOpen(false)}
-                className={navMobileClass('artikel')}
-              >
-                Artikel & Panduan Inklusi
-              </a>
+
+              {/* Dropdown Artikel (mobile) */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileArtikelOpen(prev => !prev)}
+                  aria-expanded={isMobileArtikelOpen}
+                  className={`w-full flex items-center justify-between cursor-pointer ${navMobileClass('artikel')}`}
+                >
+                  <span>Artikel</span>
+                  <Icon name={isMobileArtikelOpen ? 'expand_less' : 'expand_more'} className="text-[20px]" />
+                </button>
+                {isMobileArtikelOpen && (
+                  <div className="ml-3 mt-1 pl-3 border-l-2 border-emerald-100 flex flex-col space-y-1">
+                    <a
+                      href={articleHref()}
+                      onClick={() => setIsMobileNavOpen(false)}
+                      className="px-3 py-2 rounded-lg text-[13.5px] hover:bg-slate-100"
+                    >
+                      Semua Artikel
+                    </a>
+                    {ARTIKEL_MENU.map(g => (
+                      <div key={g.jenis}>
+                        <button
+                          type="button"
+                          aria-expanded={expandedMobileArtikelGroup === g.jenis}
+                          onClick={() => setExpandedMobileArtikelGroup(prev => prev === g.jenis ? null : g.jenis)}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-[13.5px] font-bold text-[#006316] hover:bg-emerald-50 ${expandedMobileArtikelGroup === g.jenis ? 'bg-emerald-50' : ''}`}
+                        >
+                          <span>{g.label}</span>
+                          <Icon name={expandedMobileArtikelGroup === g.jenis ? 'expand_less' : 'expand_more'} className="text-[18px]" />
+                        </button>
+                        {expandedMobileArtikelGroup === g.jenis && (
+                          <div className="ml-3 pl-2 border-l-2 border-emerald-100 flex flex-col">
+                            {g.bagian.map(b => (
+                              <a
+                                key={b.key}
+                                href={articleHref(g.jenis, b.key)}
+                                onClick={() => setIsMobileNavOpen(false)}
+                                className="px-3 py-2 rounded-lg text-[13px] hover:bg-slate-100"
+                              >
+                                {b.label}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
@@ -1305,11 +1428,13 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
       </nav>
   );
 
-  // Halaman Artikel: tampil menggantikan landing page saat hash = #artikel atau #artikel/<slug>
+  // Halaman Artikel: tampil menggantikan landing page saat hash = #artikel atau #artikel/...
   if (articleRoute.open) {
     return (
       <ArticlesPage
         slug={articleRoute.slug}
+        jenis={articleRoute.jenis}
+        bagian={articleRoute.bagian}
         currentLang={currentLang}
         appSettings={appSettings}
         navbar={navbar}

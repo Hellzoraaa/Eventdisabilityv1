@@ -421,3 +421,34 @@ UNION ALL SELECT 'tpq_programs',        COUNT(*) FROM `tpq_programs`
 UNION ALL SELECT 'application_settings',COUNT(*) FROM `application_settings`
 UNION ALL SELECT 'system_logs',         COUNT(*) FROM `system_logs`
 UNION ALL SELECT 'site_visits',         COUNT(*) FROM `site_visits`;
+
+-- Jalankan sekali di database yang dipakai backend (.env: DB_DATABASE).
+-- Aman dijalankan ulang karena memakai IF NOT EXISTS.
+CREATE TABLE IF NOT EXISTS articles (
+  id VARCHAR(36) NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  category VARCHAR(80) NOT NULL,
+  excerpt VARCHAR(300) NOT NULL DEFAULT '',
+  content MEDIUMTEXT NOT NULL,
+  status ENUM('draft','published') NOT NULL DEFAULT 'draft',
+  created_by VARCHAR(100) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  published_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY idx_articles_status_updated (status, updated_at),
+  KEY idx_articles_category (category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS article_settings (
+  setting_key VARCHAR(50) NOT NULL,
+  setting_value JSON NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (setting_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO article_settings (setting_key, setting_value) VALUES
+('categories', JSON_ARRAY('Pedoman Braille','Panduan Braille','Pedoman Isyarat','Panduan Isyarat','Kosa Isyarat')),
+('fonts', JSON_ARRAY('Arial','Georgia','Times New Roman','Verdana','Tahoma','Trebuchet MS','Courier New'))
+ON DUPLICATE KEY UPDATE setting_key = VALUES(setting_key);
+
