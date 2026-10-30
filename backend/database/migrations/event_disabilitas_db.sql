@@ -430,6 +430,7 @@ CREATE TABLE IF NOT EXISTS articles (
   category VARCHAR(80) NOT NULL,
   excerpt VARCHAR(300) NOT NULL DEFAULT '',
   content MEDIUMTEXT NOT NULL,
+  cover_image MEDIUMTEXT NULL,
   status ENUM('draft','published') NOT NULL DEFAULT 'draft',
   created_by VARCHAR(100) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -439,6 +440,9 @@ CREATE TABLE IF NOT EXISTS articles (
   KEY idx_articles_status_updated (status, updated_at),
   KEY idx_articles_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Untuk database yang sudah ada sebelumnya (server juga menambahkan kolom ini otomatis saat start):
+-- ALTER TABLE articles ADD COLUMN cover_image MEDIUMTEXT NULL AFTER content;
 
 CREATE TABLE IF NOT EXISTS article_settings (
   setting_key VARCHAR(50) NOT NULL,

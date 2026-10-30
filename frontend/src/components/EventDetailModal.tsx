@@ -4,6 +4,7 @@ import { TrainingProposal, DisabilityMaster } from '../types.ts';
 import { PartnerLogo } from './PartnerLogo.tsx';
 import { VerifiedBadge } from './VerifiedBadge.tsx';
 
+import { getParticipantCategoryOptions } from '../utils/participantCategory.ts';
 function getPersyaratanItems(value: string | null | undefined): { text: string; jenis?: string; wajib?: boolean }[] {
   if (!value?.trim()) return [];
   try {
@@ -68,9 +69,14 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
   const [regWa, setRegWa] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regAge, setRegAge] = useState('');
-  const [regDisability, setRegDisability] = useState(
-    event.kategoriDisabilitasUtama || disabilities[0]?.kode || 'tunanetra'
+  // Pilihan kategori peserta mengikuti kategori event (1 kategori -> 1 pilihan; 2 kategori -> 3 pilihan).
+  const activeDisabilities = disabilities.filter(d => d.isAktif !== false);
+  const eventMaster = activeDisabilities.find(d => d.id === (event as any).disabilityId);
+  const disabilityOptions = getParticipantCategoryOptions(
+    eventMaster?.nama || String(event.kategoriDisabilitasUtama || event.kategoriDisabilitas || '').trim(),
+    activeDisabilities,
   );
+  const [regDisability, setRegDisability] = useState(disabilityOptions[0].value);
   const [regFacilities, setRegFacilities] = useState<string[]>([]);
   const [regNotes, setRegNotes] = useState('');
 
@@ -489,21 +495,9 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                       onChange={e => setRegDisability(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-[13px] text-slate-900 focus:outline-none focus:border-cyan-700"
                     >
-                      {disabilities.length > 0 ? (
-                        disabilities.map(dis => (
-                          <option key={dis.id || dis.kode} value={dis.kode}>
-                            {dis.nama} ({dis.kategoriUtama})
-                          </option>
-                        ))
-                      ) : (
-                        <>
-                          <option value="umum">Umum / Non-Disabilitas (Masyarakat, Relawan, Guru)</option>
-                          <option value="tunanetra">Tunanetra (Braille / Audio)</option>
-                          <option value="tunarungu">Tunarungu (Bahasa Isyarat)</option>
-                          <option value="tunadaksa">Tunadaksa (Akses Kursi Roda)</option>
-                          <option value="intelektual_autisme">Intelektual / Autisme</option>
-                        </>
-                      )}
+                      {disabilityOptions.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

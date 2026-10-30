@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { Icon } from './Icon.tsx';
 import { ApplicationSettings } from '../types.ts';
 import { KosakataPublik } from './KosakataPublik.tsx';
+import { loadArticleFonts, fontTagsToInlineStyle } from '../utils/articleFonts.ts';
 
 export type ArtikelJenis = 'braille' | 'isyarat' | 'umum';
 export type RouteJenis = 'braille' | 'isyarat';
@@ -19,10 +20,13 @@ export interface Article {
   /** Pedoman / Panduan (kosa isyarat bukan artikel, diambil dari data kosakata). */
   bagian?: 'pedoman' | 'panduan';
   fromDatabase?: boolean;
+  /** Gambar sampul: gambar pertama di dalam konten artikel (jika ada). */
+  thumbnail?: string;
+  /** Foto sampul yang diunggah admin. Diutamakan dibanding gambar di dalam konten. */
+  coverImage?: string;
+  /** Ringkasan artikel dari Manajemen Artikel. */
+  excerpt?: string;
 }
-
-const PENUTUP =
-  'Kementerian Agama dan lembaga mitra terus memperluas jaringan pendampingan dan cetakan mushaf ramah disabilitas di seluruh wilayah Indonesia agar tidak ada sahabat disabilitas yang tertinggal dalam mengakses ilmu Al-Quran.';
 
 /* ------------------------------------------------------------------ */
 /* Struktur menu: Artikel > Braille / Isyarat > Pedoman / Panduan / Kosa Isyarat */
@@ -49,41 +53,6 @@ export const ARTIKEL_MENU = (Object.keys(BAGIAN_BY_JENIS) as RouteJenis[]).map(j
 /** Tautan hash: articleHref() -> #artikel, articleHref('isyarat','kosa-isyarat') -> #artikel/isyarat/kosa-isyarat */
 export const articleHref = (jenis?: RouteJenis, bagian?: RouteBagian) =>
   `#artikel${jenis ? `/${jenis}` : ''}${jenis && bagian ? `/${bagian}` : ''}`;
-
-export const ARTICLES: Article[] = [
-  {
-    slug: 'panduan-al-quran-braille',
-    title: 'Panduan Mudah Mengenal Al-Quran Braille Standar Indonesia',
-    category: 'Disabilitas Netra',
-    date: '15 September 2024',
-    jenis: 'braille',
-    bagian: 'panduan',
-    content:
-      'Al-Quran Braille di Indonesia mengacu pada standar resmi Kementerian Agama RI dengan sistem 6 titik timbul yang memudahkan para tunanetra membaca dengan sentuhan ujung jari. Pelajari tanda harakat, tajwid braille, dan panduan dasar belajarnya di sini.',
-    body: [],
-  },
-  {
-    slug: 'huruf-hijaiyah-isyarat',
-    title: 'Metode Pembelajaran Huruf Hijaiyah Isyarat (BISINDO & SIBI)',
-    category: 'Disabilitas Rungu / Tuli',
-    date: '10 September 2024',
-    jenis: 'isyarat',
-    bagian: 'panduan',
-    content:
-      'Pembelajaran Al-Quran bagi teman Tuli kini semakin inklusif berkat pengembangan isyarat hijaiyah dan tafsir isyarat Al-Quran. Melalui visualisasi makhraj huruf dan ekspresi gerak tangan, pemahaman makna ayat suci dapat dicapai dengan komprehensif.',
-    body: [],
-  },
-  {
-    slug: 'aksesibilitas-fisik-rumah-quran',
-    title: 'Standarisasi Aksesibilitas Fisik Rumah Quran & Masjid Inklusif',
-    category: 'Disabilitas Daksa & Fisik',
-    date: '02 September 2024',
-    jenis: 'umum',
-    content:
-      'Mewujudkan rumah quran ramah disabilitas daksa mencakup pembuatan ramp dengan kemiringan maksimal 1:12, handrail pemandu, pintu minimal lebar 90cm, dan toilet wudhu ramah kursi roda.',
-    body: [],
-  },
-].map(a => ({ ...a, body: [a.content, PENUTUP] })) as Article[];
 
 /* ------------------------------------------------------------------ */
 /* Routing lewat hash                                                  */
@@ -136,10 +105,37 @@ const pill = (active: boolean) =>
     active ? 'bg-[#006316] text-white border-[#006316]' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
   }`;
 
+const BULAN_ID = ['januari','februari','maret','april','mei','juni','juli','agustus','september','oktober','november','desember'];
+
+/** "2026-10-29T09:47:00Z" atau "15 September 2024" -> "Kamis, 29 Oktober 2026". Teks yang tak dikenali dibiarkan. */
+const formatArticleDate = (raw: string, id: boolean) => {
+  if (!raw) return raw;
+  let d: Date | null = null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) d = new Date(raw);
+  else {
+    const m = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(raw.trim());
+    const mi = m ? BULAN_ID.indexOf(m[2].toLowerCase()) : -1;
+    if (m && mi >= 0) d = new Date(Number(m[3]), mi, Number(m[1]));
+  }
+  if (!d || isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString(id ? 'id-ID' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+};
+
+
+const readingMinutes = (a: Article) => {
+  const text = a.content.replace(/<[^>]*>/g, ' ').trim();
+  return Math.max(1, Math.round(text.split(/\s+/).filter(Boolean).length / 200));
+};
+
 export const ArticlesPage: React.FC<ArticlesPageProps> = ({ slug, jenis = null, bagian = null, currentLang, appSettings, navbar }) => {
   const id = currentLang === 'id';
 
   const [databaseArticles, setDatabaseArticles] = React.useState<Article[]>([]);
+  const PAGE_SIZE = 12;
+  const [limit, setLimit] = React.useState(PAGE_SIZE);
+  useEffect(() => { setLimit(PAGE_SIZE); }, [jenis, bagian]);
+  // Muat @font-face untuk font hasil impor agar isi artikel tampil dengan font yang dipilih penulis.
+  useEffect(() => { loadArticleFonts(); }, []);
 
   useEffect(() => {
     let active = true;
@@ -156,7 +152,9 @@ export const ArticlesPage: React.FC<ArticlesPageProps> = ({ slug, jenis = null, 
           const slugId = String(item.id || '').replace(/[^a-zA-Z0-9_-]/g, '-');
           return {
             slug: `db-${slugId}`, title: String(item.title || 'Artikel'), category, date: item.publishedAt || item.updatedAt || item.createdAt || '',
-            content: String(item.content || ''), body: [], jenis, bagian, fromDatabase: true,
+            content: String(item.content || ''), excerpt: String(item.excerpt || ''), body: [], jenis, bagian, fromDatabase: true,
+            coverImage: item.coverImage ? String(item.coverImage) : undefined,
+            thumbnail: item.coverImage ? String(item.coverImage) : (/<img[^>]+src=["']([^"']+)["']/i.exec(String(item.content || '')) || [])[1],
           };
         });
         setDatabaseArticles(mapped);
@@ -165,7 +163,7 @@ export const ArticlesPage: React.FC<ArticlesPageProps> = ({ slug, jenis = null, 
     return () => { active = false; };
   }, []);
 
-  const allArticles = useMemo(() => [...databaseArticles, ...ARTICLES], [databaseArticles]);
+  const allArticles = useMemo(() => databaseArticles, [databaseArticles]);
   const article = useMemo(() => allArticles.find(a => a.slug === slug) || null, [allArticles, slug]);
 
   const visible = useMemo(
@@ -195,73 +193,122 @@ export const ArticlesPage: React.FC<ArticlesPageProps> = ({ slug, jenis = null, 
     [a.jenis !== 'umum' ? JENIS_LABEL[a.jenis] : '', a.bagian ? BAGIAN_LABEL[a.bagian] : ''].filter(Boolean).join(' • ');
 
   return (
-    <div className="min-h-screen w-full flex flex-col font-sans bg-[#F4F8F3] text-slate-800">
+    <div className={`min-h-screen w-full flex flex-col font-sans text-slate-800 ${article || slug ? 'bg-[#F4F8F3]' : 'bg-white'}`}>
       {navbar}
 
-      <main className="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
+      {!article && !slug && (
+        <div className="w-full border-b border-slate-200">
+          <nav aria-label="Breadcrumb" className="max-w-[1280px] mx-auto px-4 sm:px-6 py-3.5 flex items-center gap-2 text-[14px] text-slate-500">
+            <a href="#" className="hover:text-[#006316]">{id ? 'Beranda' : 'Home'}</a>
+            <Icon name="chevron-right" className="text-[14px]" />
+            <a href={articleHref()} className={jenis ? 'hover:text-[#006316]' : 'text-slate-900 font-medium'}>{id ? 'Artikel' : 'Articles'}</a>
+            {jenis && (<><Icon name="chevron-right" className="text-[14px]" /><span className="text-slate-900 font-medium">{JENIS_LABEL[jenis]}</span></>)}
+          </nav>
+        </div>
+      )}
+
+      <main className="flex-1 w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-8 sm:py-12">
         {article ? (
-          /* ---------- DETAIL ARTIKEL ---------- */
-          <article className="bg-white border border-[#DCE8DE] rounded-3xl p-6 sm:p-10 shadow-sm">
-            <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-[12px] text-slate-500 mb-4">
-              <a href={articleHref()} className="hover:text-[#006316]">{id ? 'Artikel' : 'Articles'}</a>
-              {article.jenis !== 'umum' && (
-                <>
-                  <span>/</span>
-                  <a href={articleHref(article.jenis as RouteJenis)} className="hover:text-[#006316]">{JENIS_LABEL[article.jenis as RouteJenis]}</a>
-                  {article.bagian && (
-                    <>
-                      <span>/</span>
-                      <a href={articleHref(article.jenis as RouteJenis, article.bagian)} className="hover:text-[#006316]">{BAGIAN_LABEL[article.bagian]}</a>
-                    </>
-                  )}
-                </>
+          /* ---------- DETAIL ARTIKEL (gaya halaman Kisah Inspiratif Kemenag) ---------- */
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-8 lg:gap-10">
+            <article className="min-w-0">
+              <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-[12px] text-slate-500 mb-5">
+                <a href="#" className="hover:text-[#006316]">{id ? 'Beranda' : 'Home'}</a>
+                <span>/</span>
+                <a href={articleHref()} className="hover:text-[#006316]">{id ? 'Artikel' : 'Articles'}</a>
+                {article.jenis !== 'umum' && (
+                  <>
+                    <span>/</span>
+                    <a href={articleHref(article.jenis as RouteJenis)} className="hover:text-[#006316]">{JENIS_LABEL[article.jenis as RouteJenis]}</a>
+                  </>
+                )}
+              </nav>
+
+              <p className="text-[12px] font-bold uppercase tracking-[0.14em] text-[#006316] mb-3">{article.category}</p>
+              <h1 className="text-[26px] sm:text-[38px] font-extrabold text-slate-900 tracking-tight leading-[1.2]">
+                {article.title}
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-slate-500 mt-5 pb-5 border-b border-slate-200">
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon name="person" className="text-[16px]" />
+                  {id ? 'Kontributor' : 'Contributor'}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon name="calendar_month" className="text-[16px]" />
+                  <time>{formatArticleDate(article.date, id)}</time>
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Icon name="schedule" className="text-[16px]" />
+                  {readingMinutes(article)} {id ? 'menit baca' : 'min read'}
+                </span>
+              </div>
+
+              {article.excerpt && <p className="article-excerpt mt-6">{article.excerpt}</p>}
+
+              {article.coverImage && (
+                <img
+                  src={article.coverImage}
+                  alt=""
+                  className="w-full aspect-[16/9] object-cover rounded-2xl mt-6"
+                />
               )}
-            </nav>
 
-            <span className="inline-block px-3 py-1 rounded-full bg-emerald-50 text-[#006316] border border-emerald-200 text-[11px] font-bold uppercase tracking-wider">
-              {article.category}
-            </span>
-            <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight leading-tight mt-3 mb-2">
-              {article.title}
-            </h1>
-            <p className="flex items-center gap-1.5 text-[13px] text-slate-500 pb-6 mb-6 border-b border-slate-100">
-              <Icon name="calendar_month" className="text-[16px]" />
-              <time>{article.date}</time>
-            </p>
+              <div className="article-body mt-8">
+                <div className="article-published-html" dangerouslySetInnerHTML={{ __html: fontTagsToInlineStyle(article.content) }} />
+              </div>
 
-            <div className="text-[15px] sm:text-[16px] text-slate-700 leading-[1.85] space-y-5">
-              {article.fromDatabase ? <div className="article-published-html" dangerouslySetInnerHTML={{ __html: article.content }} /> : article.body.map((p, i) => <p key={i}>{p}</p>)}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-10 pt-6 border-t border-slate-100">
-              {prev ? (
-                <a href={`#artikel/${prev.slug}`} className="p-4 rounded-2xl border border-slate-200 hover:border-[#006316]/50 hover:bg-emerald-50/40 transition-all">
-                  <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    <Icon name="arrow_back" className="text-[14px]" />
-                    {id ? 'Sebelumnya' : 'Previous'}
-                  </span>
-                  <span className="text-[14px] font-bold text-slate-900 leading-snug line-clamp-2">{prev.title}</span>
+              <div className="flex flex-wrap items-center gap-2 mt-10 pt-5 border-t border-slate-200">
+                <span className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mr-1">{id ? 'Topik' : 'Topic'}</span>
+                <a href={articleHref(article.jenis !== 'umum' ? (article.jenis as RouteJenis) : undefined)} className="px-3 py-1 rounded-full bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-[#006316] text-[12px] font-semibold transition-colors">
+                  {article.category}
                 </a>
-              ) : <span />}
-              {next ? (
-                <a href={`#artikel/${next.slug}`} className="p-4 rounded-2xl border border-slate-200 hover:border-[#006316]/50 hover:bg-emerald-50/40 transition-all sm:text-right">
-                  <span className="flex items-center sm:justify-end gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    {id ? 'Berikutnya' : 'Next'}
-                    <Icon name="arrow_forward" className="text-[14px]" />
-                  </span>
-                  <span className="text-[14px] font-bold text-slate-900 leading-snug line-clamp-2">{next.title}</span>
-                </a>
-              ) : <span />}
-            </div>
+              </div>
 
-            <a
-              href={article.jenis !== 'umum' ? articleHref(article.jenis as RouteJenis, article.bagian) : articleHref()}
-              className="inline-flex items-center gap-2 mt-8 px-5 py-2.5 rounded-full bg-[#006316] hover:bg-[#004D11] text-white text-[13px] font-semibold transition-colors"
-            >
-              <Icon name="arrow_back" className="text-[16px]" />
-              <span>{id ? 'Kembali ke daftar artikel' : 'Back to all articles'}</span>
-            </a>
-          </article>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8">
+                {prev ? (
+                  <a href={`#artikel/${prev.slug}`} className="p-4 rounded-xl border border-slate-200 bg-white hover:border-[#006316]/50 transition-all">
+                    <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      <Icon name="arrow_back" className="text-[14px]" />
+                      {id ? 'Sebelumnya' : 'Previous'}
+                    </span>
+                    <span className="text-[14px] font-bold text-slate-900 leading-snug line-clamp-2">{prev.title}</span>
+                  </a>
+                ) : <span />}
+                {next ? (
+                  <a href={`#artikel/${next.slug}`} className="p-4 rounded-xl border border-slate-200 bg-white hover:border-[#006316]/50 transition-all sm:text-right">
+                    <span className="flex items-center sm:justify-end gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      {id ? 'Berikutnya' : 'Next'}
+                      <Icon name="arrow_forward" className="text-[14px]" />
+                    </span>
+                    <span className="text-[14px] font-bold text-slate-900 leading-snug line-clamp-2">{next.title}</span>
+                  </a>
+                ) : <span />}
+              </div>
+            </article>
+
+            {/* Sidebar: artikel terkait */}
+            <aside className="lg:sticky lg:top-24 self-start">
+              <h2 className="text-[15px] font-extrabold text-slate-900 pb-2 mb-4 border-b-2 border-[#006316] inline-block">
+                {id ? 'Artikel Lainnya' : 'More Articles'}
+              </h2>
+              <ul className="divide-y divide-slate-200">
+                {allArticles.filter(a => a.slug !== article.slug).slice(0, 5).map(a => (
+                  <li key={a.slug}>
+                    <a href={`#artikel/${a.slug}`} className="group block py-3">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#006316]">{a.category}</span>
+                      <span className="block text-[14px] font-bold text-slate-900 leading-snug mt-0.5 group-hover:text-[#006316] transition-colors line-clamp-3">{a.title}</span>
+                      <span className="block text-[12px] text-slate-400 mt-1">{formatArticleDate(a.date, id)}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <a href={articleHref()} className="inline-flex items-center gap-1.5 mt-3 text-[13px] font-semibold text-[#006316] hover:underline">
+                {id ? 'Lihat semua artikel' : 'See all articles'}
+                <Icon name="arrow_forward" className="text-[15px]" />
+              </a>
+            </aside>
+          </div>
         ) : slug ? (
           /* ---------- SLUG TIDAK DITEMUKAN ---------- */
           <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center">
@@ -275,16 +322,18 @@ export const ArticlesPage: React.FC<ArticlesPageProps> = ({ slug, jenis = null, 
           /* ---------- DAFTAR: Semua / Braille / Isyarat ---------- */
           <>
             <header className="mb-6">
-              <h1 className="text-2xl sm:text-4xl font-extrabold text-[#006316] tracking-tight">
+              <h1 className="article-serif text-[32px] sm:text-[44px] font-bold text-slate-900 tracking-tight leading-tight">
                 {jenis
                   ? `${id ? 'Artikel' : 'Articles'} ${JENIS_LABEL[jenis]}${bagian ? ` - ${BAGIAN_LABEL[bagian]}` : ''}`
-                  : id ? 'Artikel & Panduan Inklusi' : 'Articles & Inclusion Guides'}
+                  : id ? 'Semua Artikel' : 'All Articles'}
               </h1>
-              <p className="text-[14px] sm:text-[15px] text-slate-600 mt-2 max-w-2xl">
-                {id
-                  ? "Bacaan dan panduan seputar pembelajaran Al-Qur'an yang ramah bagi semua ragam disabilitas."
-                  : "Reading and guides on Qur'an learning that is accessible to every kind of disability."}
-              </p>
+              {bagian !== 'kosa-isyarat' && (
+                <p className="text-[14px] text-slate-500 mt-3">
+                  {id
+                    ? `Menampilkan ${Math.min(limit, visible.length)} dari ${visible.length} artikel`
+                    : `Showing ${Math.min(limit, visible.length)} of ${visible.length} articles`}
+                </p>
+              )}
             </header>
 
             {/* Tingkat 1: Semua / Braille / Isyarat */}
@@ -320,30 +369,41 @@ export const ArticlesPage: React.FC<ArticlesPageProps> = ({ slug, jenis = null, 
                 <p className="text-[14px] text-slate-600">{id ? 'Belum ada artikel pada bagian ini.' : 'No articles in this section yet.'}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {visible.map(art => (
-                  <a
-                    key={art.slug}
-                    href={`#artikel/${art.slug}`}
-                    className="group bg-white border border-[#DCE8DE] rounded-2xl p-5 sm:p-6 shadow-xs hover:shadow-md hover:border-[#006316]/50 transition-all flex flex-col"
-                  >
-                    <span className="self-start px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
-                      {jenisBadge(art) || art.category}
-                    </span>
-                    <h2 className="text-[17px] font-bold text-slate-900 leading-snug mt-2.5 mb-2 group-hover:text-[#006316] transition-colors">
-                      {art.title}
-                    </h2>
-                    <p className="text-[13px] text-slate-500 leading-relaxed line-clamp-3 mb-4">{art.content}</p>
-                    <div className="mt-auto flex items-center justify-between text-[12px]">
-                      <span className="text-slate-400">{art.date}</span>
-                      <span className="inline-flex items-center gap-1 font-semibold text-[#006316]">
-                        {id ? 'Baca selengkapnya' : 'Read more'}
-                        <Icon name="arrow_forward" className="text-[15px] transition-transform group-hover:translate-x-0.5" />
-                      </span>
-                    </div>
-                  </a>
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {visible.slice(0, limit).map(art => (
+                    <a
+                      key={art.slug}
+                      href={`#artikel/${art.slug}`}
+                      className="group bg-white border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow"
+                    >
+                      <div className="relative aspect-[16/9] bg-gradient-to-br from-emerald-50 to-emerald-100 overflow-hidden">
+                        {art.thumbnail ? (
+                          <img src={art.thumbnail} alt="" loading="lazy" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                        ) : (
+                          <img src="/logo-quran.png" alt="" className="absolute inset-0 m-auto h-1/2 w-auto opacity-30" />
+                        )}
+                        <span className="absolute top-3 left-3 max-w-[calc(100%-1.5rem)] truncate px-3 py-1 rounded-full bg-white/90 text-[#006316] text-[12px] font-medium">
+                          {jenisBadge(art) || art.category}
+                        </span>
+                      </div>
+                      <div className="p-4 pb-5">
+                        <time className="block text-[13px] text-slate-500 mb-2">{formatArticleDate(art.date, id)}</time>
+                        <h2 className="text-[18px] sm:text-[19px] font-semibold text-slate-900 leading-snug line-clamp-3 group-hover:text-[#006316] transition-colors">
+                          {art.title}
+                        </h2>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+                {visible.length > limit && (
+                  <div className="flex justify-center mt-10">
+                    <button type="button" onClick={() => setLimit(l => l + PAGE_SIZE)} className="px-6 py-2.5 rounded-full border border-[#006316] text-[#006316] hover:bg-[#006316] hover:text-white text-[14px] font-semibold transition-colors">
+                      {id ? 'Muat lebih banyak' : 'Load more'}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

@@ -94,6 +94,8 @@ interface EventDetailPageProps {
   onRegisterSuccess: (participant: Participant) => void;
 }
 
+import { getParticipantCategoryOptions } from '../utils/participantCategory.ts';
+
 const FALLBACK_DISABILITY_OPTIONS = [
   { value: 'umum', label: 'Umum / Non-Disabilitas (Masyarakat, Relawan, Guru)' },
   { value: 'tunanetra', label: 'Tunanetra (Braille / Audio)' },
@@ -157,25 +159,25 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
 
   const activeDisabilities = disabilities.filter((d) => d.isAktif !== false);
 
-  // Tetapkan kategori awal setiap kali event/master kategori tersedia.
-  // Jangan bergantung pada regDisability yang bisa ter-reset oleh effect pindah event.
+  // Pilihan kategori peserta mengikuti kategori event:
+  // 1 kategori -> 1 pilihan; 2 kategori -> masing-masing + gabungan (3 pilihan).
+  const eventCategoryLabel = (() => {
+    if (!event) return '';
+    const master = activeDisabilities.find((d) => d.id === (event as any).disabilityId);
+    return master?.nama || String(event.kategoriDisabilitasUtama || event.kategoriDisabilitas || '').trim();
+  })();
+  const disabilityOptions = getParticipantCategoryOptions(
+    eventCategoryLabel,
+    activeDisabilities,
+    { value: FALLBACK_DISABILITY_OPTIONS[0].value, label: FALLBACK_DISABILITY_OPTIONS[0].label },
+  );
+  const disabilityOptionsKey = disabilityOptions.map((o) => o.value).join('|');
+
+  // Tetapkan/koreksi pilihan awal bila nilai sekarang tidak termasuk pilihan event ini.
   useEffect(() => {
     if (!event) return;
-    const eventCategory = String(event.kategoriDisabilitasUtama || event.kategoriDisabilitas || '').trim();
-    const isGeneralEvent = /umum|semua kategori|non[- ]?disabilitas/i.test(eventCategory);
-    const matched = activeDisabilities.find(
-      (d) => d.kode === eventCategory || d.nama === eventCategory
-    );
-    const generalMaster = activeDisabilities.find(
-      (d) => /umum|non[- ]?disabilitas/i.test(`${d.kode} ${d.nama}`)
-    );
-    setRegDisability(
-      matched?.kode ||
-      (isGeneralEvent ? (generalMaster?.kode || FALLBACK_DISABILITY_OPTIONS[0].value) : '') ||
-      activeDisabilities[0]?.kode ||
-      FALLBACK_DISABILITY_OPTIONS[0].value
-    );
-  }, [event?.id, event?.kategoriDisabilitasUtama, event?.kategoriDisabilitas, activeDisabilities.length]);
+    setRegDisability((current) => (disabilityOptions.some((o) => o.value === current) ? current : disabilityOptions[0].value));
+  }, [event?.id, disabilityOptionsKey]);
 
   // Reset form saat pindah event
   useEffect(() => {
@@ -424,15 +426,6 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
 
   /* ---------- Langkah formulir ---------- */
   if (step === 'form') {
-    const disabilityOptions = activeDisabilities.length > 0
-      ? [
-          ...activeDisabilities.map((d) => ({ value: d.kode, label: `${d.nama} (${d.kategoriUtama})` })),
-          ...(!activeDisabilities.some((d) => /umum|non[- ]?disabilitas/i.test(`${d.kode} ${d.nama}`))
-            ? [FALLBACK_DISABILITY_OPTIONS[0]]
-            : []),
-        ]
-      : FALLBACK_DISABILITY_OPTIONS.map((o) => ({ value: o.value, label: o.label }));
-
     return (
       <div className="min-h-screen w-full bg-slate-50">
         {topBar}

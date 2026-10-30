@@ -1815,7 +1815,7 @@ app.post('/api/tpq/:id/register', async (req, res) => {
       return res.status(400).json({ error: 'Usia harus berupa angka antara 1 dan 120 tahun.' });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Format email tidak valid.' });
-    if (!['Tunanetra', 'Tunarungu'].includes(disabilitas)) return res.status(400).json({ error: 'Kategori peserta harus Tunanetra atau Tunarungu.' });
+    if (!['Tunanetra', 'Tunarungu', 'Tunanetra dan Tunarungu'].includes(disabilitas)) return res.status(400).json({ error: 'Kategori peserta harus Tunanetra, Tunarungu, atau Tunanetra dan Tunarungu.' });
     if (gender && !['Laki-laki', 'Perempuan'].includes(gender)) return res.status(400).json({ error: 'Jenis kelamin tidak valid.' });
     const pool = await getPool();
     await ensureTpqGenderColumn(pool);
@@ -2756,6 +2756,14 @@ async function ensureArticleTables() {
     KEY idx_articles_status_updated (status, updated_at),
     KEY idx_articles_category (category)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  // Foto sampul artikel: ditambahkan otomatis pada tabel lama yang belum punya kolomnya.
+  const [coverCol] = await pool.query(
+    `SELECT COUNT(*) AS total FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'articles' AND COLUMN_NAME = 'cover_image'`
+  );
+  if (!Number((coverCol as any[])[0]?.total)) {
+    await pool.query('ALTER TABLE articles ADD COLUMN cover_image MEDIUMTEXT NULL AFTER content');
+  }
   await pool.query(`CREATE TABLE IF NOT EXISTS article_settings (
     setting_key VARCHAR(50) NOT NULL,
     setting_value JSON NOT NULL,
@@ -2770,6 +2778,19 @@ async function ensureArticleTables() {
       'fonts', JSON.stringify(['Arial', 'Georgia', 'Times New Roman', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Courier New']),
     ]
   );
+  // Font hasil impor file (TTF / OTF / WOFF / WOFF2). Berkas disimpan di database agar tidak hilang
+  // saat hosting memakai filesystem sementara (mis. Railway).
+  await pool.query(`CREATE TABLE IF NOT EXISTS article_fonts (
+    id INT NOT NULL AUTO_INCREMENT,
+    family VARCHAR(60) NOT NULL,
+    format VARCHAR(10) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_size INT NOT NULL,
+    data LONGBLOB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_article_fonts_family (family)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 }
 
 function mapDbArticle(row: any) {
@@ -2779,6 +2800,7 @@ function mapDbArticle(row: any) {
     category: row.category ?? '',
     excerpt: row.excerpt ?? '',
     content: row.content ?? '',
+    coverImage: row.cover_image ?? '',
     status: row.status === 'published' ? 'published' : 'draft',
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString(),
@@ -2803,7 +2825,19 @@ function normalizeArticleInput(body: any) {
   const excerpt = String(body?.excerpt ?? '').trim().slice(0, 300);
   const content = sanitizeArticleHtml(body?.content);
   const status = body?.status === 'published' ? 'published' : 'draft';
-  return { title, category, excerpt, content, status };
+  const coverImage = String(body?.coverImage ?? '').trim();
+  return { title, category, excerpt, content, status, coverImage };
+}
+
+// Foto sampul: tautan http(s) atau gambar hasil unggahan (data URL png/jpg/webp/gif), maks ~2 MB.
+const ARTICLE_COVER_MAX_LENGTH = 2_800_000;
+function validateArticleCover(coverImage: string): string | null {
+  if (!coverImage) return null;
+  if (!/^(https?:\/\/|data:image\/(png|jpe?g|webp|gif);base64,)/i.test(coverImage)) {
+    return 'Foto sampul tidak valid. Gunakan file gambar PNG, JPG, WEBP, atau GIF.';
+  }
+  if (coverImage.length > ARTICLE_COVER_MAX_LENGTH) return 'Ukuran foto sampul terlalu besar (maksimal 2 MB).';
+  return null;
 }
 
 // Endpoint publik: hanya artikel yang benar-benar berstatus published.
@@ -2812,7 +2846,7 @@ app.get('/api/articles', async (req, res) => {
     const pool = await getPool();
     const category = String(req.query.category ?? '').trim();
     const [rows] = await pool.query(
-      `SELECT id, title, category, excerpt, content, status, created_at, updated_at, published_at
+      `SELECT id, title, category, excerpt, content, cover_image, status, created_at, updated_at, published_at
          FROM articles
         WHERE status = 'published' AND (? = '' OR category = ?)
         ORDER BY COALESCE(published_at, updated_at) DESC`,
@@ -2831,7 +2865,7 @@ app.get('/api/admin/articles', async (req, res) => {
     const user = await requireSuperadminOnly(req, res); if (!user) return;
     const pool = await getPool();
     const [rows] = await pool.query(
-      `SELECT id, title, category, excerpt, content, status, created_at, updated_at, published_at
+      `SELECT id, title, category, excerpt, content, cover_image, status, created_at, updated_at, published_at
          FROM articles ORDER BY updated_at DESC`
     );
     return res.json({ articles: (rows as any[]).map(mapDbArticle) });
@@ -2848,12 +2882,14 @@ app.post('/api/admin/articles', async (req, res) => {
     if (!article.title || !article.category || !article.content.replace(/<[^>]*>/g, '').trim()) {
       return res.status(400).json({ error: 'Judul, kategori, dan isi artikel wajib diisi.' });
     }
+    const coverError = validateArticleCover(article.coverImage);
+    if (coverError) return res.status(400).json({ error: coverError });
     const id = crypto.randomUUID();
     const pool = await getPool();
     await pool.query(
-      `INSERT INTO articles (id, title, category, excerpt, content, status, created_by, published_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)` ,
-      [id, article.title, article.category, article.excerpt, article.content, article.status, user.id, article.status === 'published' ? new Date() : null]
+      `INSERT INTO articles (id, title, category, excerpt, content, cover_image, status, created_by, published_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+      [id, article.title, article.category, article.excerpt, article.content, article.coverImage || null, article.status, user.id, article.status === 'published' ? new Date() : null]
     );
     const [rows] = await pool.query('SELECT * FROM articles WHERE id = ? LIMIT 1', [id]);
     return res.status(201).json({ article: mapDbArticle((rows as any[])[0]) });
@@ -2871,13 +2907,15 @@ app.put('/api/admin/articles/:id', async (req, res) => {
       return res.status(400).json({ error: 'Judul, kategori, dan isi artikel wajib diisi.' });
     }
     const pool = await getPool();
+    const coverError = validateArticleCover(article.coverImage);
+    if (coverError) return res.status(400).json({ error: coverError });
     const [before] = await pool.query('SELECT id, published_at FROM articles WHERE id = ? LIMIT 1', [req.params.id]);
     if (!(before as any[]).length) return res.status(404).json({ error: 'Artikel tidak ditemukan.' });
     await pool.query(
-      `UPDATE articles SET title = ?, category = ?, excerpt = ?, content = ?, status = ?,
+      `UPDATE articles SET title = ?, category = ?, excerpt = ?, content = ?, cover_image = ?, status = ?,
        published_at = CASE WHEN ? = 'published' THEN COALESCE(published_at, CURRENT_TIMESTAMP) ELSE NULL END
        WHERE id = ?`,
-      [article.title, article.category, article.excerpt, article.content, article.status, article.status, req.params.id]
+      [article.title, article.category, article.excerpt, article.content, article.coverImage || null, article.status, article.status, req.params.id]
     );
     const [rows] = await pool.query('SELECT * FROM articles WHERE id = ? LIMIT 1', [req.params.id]);
     return res.json({ article: mapDbArticle((rows as any[])[0]) });
@@ -2897,6 +2935,139 @@ app.delete('/api/admin/articles/:id', async (req, res) => {
   } catch (error) {
     console.error('[Admin Articles DELETE]', error);
     return res.status(500).json({ error: 'Gagal menghapus artikel dari database.' });
+  }
+});
+
+// ---- Font artikel: impor file TTF / OTF / WOFF / WOFF2 ----
+const ARTICLE_FONT_MAX_BYTES = 5 * 1024 * 1024;
+const ARTICLE_FONT_EXTENSIONS = ['ttf', 'otf', 'woff', 'woff2'];
+const ARTICLE_FONT_FORMATS: Record<string, { mime: string; css: string }> = {
+  ttf: { mime: 'font/ttf', css: 'truetype' },
+  otf: { mime: 'font/otf', css: 'opentype' },
+  woff: { mime: 'font/woff', css: 'woff' },
+  woff2: { mime: 'font/woff2', css: 'woff2' },
+};
+
+// Format ditentukan dari isi file (magic bytes), bukan dari ekstensi, agar file palsu ditolak.
+function detectFontFormat(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  const sig = buf.subarray(0, 4).toString('latin1');
+  if (sig === 'wOFF') return 'woff';
+  if (sig === 'wOF2') return 'woff2';
+  if (sig === 'OTTO') return 'otf';
+  if (sig === 'true' || buf.readUInt32BE(0) === 0x00010000) return 'ttf';
+  return null;
+}
+
+// Nama family dipakai di CSS, jadi hanya huruf/angka/spasi/-/_ yang diizinkan (mencegah injeksi CSS).
+function sanitizeFontFamily(value: unknown): string {
+  return String(value ?? '').replace(/[^\p{L}\p{N} _-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+
+function mapDbFont(row: any) {
+  return { id: Number(row.id), family: row.family, format: row.format, fileName: row.file_name, size: Number(row.file_size) };
+}
+
+// Publik: daftar font hasil impor (tanpa isi file).
+app.get('/api/article-fonts', async (_req, res) => {
+  try {
+    const pool = await getPool();
+    const [rows] = await pool.query('SELECT id, family, format, file_name, file_size FROM article_fonts ORDER BY family ASC');
+    return res.json({ fonts: (rows as any[]).map(mapDbFont) });
+  } catch (error) {
+    console.error('[Article Fonts GET]', error);
+    return res.status(500).json({ error: 'Gagal mengambil daftar font.' });
+  }
+});
+
+// Publik: stylesheet @font-face untuk semua font hasil impor. Dimuat oleh editor dan halaman artikel publik.
+app.get('/api/article-fonts.css', async (_req, res) => {
+  try {
+    const pool = await getPool();
+    const [rows] = await pool.query('SELECT id, family, format FROM article_fonts ORDER BY id ASC');
+    const css = (rows as any[]).map((row) => {
+      const fmt = ARTICLE_FONT_FORMATS[row.format];
+      if (!fmt) return '';
+      return `@font-face{font-family:"${row.family}";src:url("/api/article-fonts/${row.id}/file") format("${fmt.css}");font-weight:normal;font-style:normal;font-display:swap;}`;
+    }).join('\n');
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    return res.send(css);
+  } catch (error) {
+    console.error('[Article Fonts CSS]', error);
+    return res.status(500).type('text/css').send('');
+  }
+});
+
+// Publik: berkas font. ID tidak pernah dipakai ulang, sehingga aman di-cache lama.
+app.get('/api/article-fonts/:id/file', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(404).end();
+    const pool = await getPool();
+    const [rows] = await pool.query('SELECT format, data FROM article_fonts WHERE id = ? LIMIT 1', [id]);
+    const row = (rows as any[])[0];
+    const fmt = row && ARTICLE_FONT_FORMATS[row.format];
+    if (!row || !fmt) return res.status(404).end();
+    res.setHeader('Content-Type', fmt.mime);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    return res.send(row.data);
+  } catch (error) {
+    console.error('[Article Fonts FILE]', error);
+    return res.status(500).end();
+  }
+});
+
+// Super Admin: impor font. Body JSON { family, fileName, data } dengan data berupa base64 (boleh berawalan data URL).
+app.post('/api/admin/article-fonts', async (req, res) => {
+  try {
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
+    const fileName = String(req.body?.fileName ?? '').trim().slice(0, 255);
+    const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+    if (!ARTICLE_FONT_EXTENSIONS.includes(ext)) {
+      return res.status(400).json({ error: 'Format file tidak didukung. Gunakan TTF, OTF, WOFF, atau WOFF2.' });
+    }
+    const family = sanitizeFontFamily(req.body?.family);
+    if (!family) return res.status(400).json({ error: 'Nama font wajib diisi (huruf, angka, spasi, - atau _).' });
+
+    const base64 = String(req.body?.data ?? '').replace(/^data:[^;]*;base64,/, '');
+    const buffer = Buffer.from(base64, 'base64');
+    if (!buffer.length) return res.status(400).json({ error: 'File font kosong atau tidak terbaca.' });
+    if (buffer.length > ARTICLE_FONT_MAX_BYTES) return res.status(400).json({ error: 'Ukuran file font maksimal 5 MB.' });
+    const format = detectFontFormat(buffer);
+    if (!format) return res.status(400).json({ error: 'Isi file bukan font TTF, OTF, WOFF, atau WOFF2 yang valid.' });
+
+    const pool = await getPool();
+    const [[dup]] = await pool.query('SELECT id FROM article_fonts WHERE family = ? LIMIT 1', [family]) as any;
+    if (dup) return res.status(409).json({ error: `Nama font “${family}” sudah dipakai. Gunakan nama lain.` });
+    const [[count]] = await pool.query('SELECT COUNT(*) AS total FROM article_fonts') as any;
+    if (Number(count.total) >= 50) return res.status(400).json({ error: 'Maksimal 50 font hasil impor.' });
+
+    const [result] = await pool.query(
+      'INSERT INTO article_fonts (family, format, file_name, file_size, data) VALUES (?, ?, ?, ?, ?)',
+      [family, format, fileName, buffer.length, buffer]
+    );
+    return res.status(201).json({ font: { id: Number((result as any).insertId), family, format, fileName, size: buffer.length } });
+  } catch (error) {
+    console.error('[Article Fonts POST]', error);
+    return res.status(500).json({ error: 'Gagal menyimpan font ke database.' });
+  }
+});
+
+app.delete('/api/admin/article-fonts/:id', async (req, res) => {
+  try {
+    const user = await requireSuperadminOnly(req, res); if (!user) return;
+    const pool = await getPool();
+    const [result] = await pool.query('DELETE FROM article_fonts WHERE id = ?', [Number(req.params.id)]);
+    if (!(result as any).affectedRows) return res.status(404).json({ error: 'Font tidak ditemukan.' });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Article Fonts DELETE]', error);
+    return res.status(500).json({ error: 'Gagal menghapus font.' });
   }
 });
 
@@ -3226,11 +3397,16 @@ async function startServer() {
     console.log(`Server running on http://localhost:${PORT}`);
     try {
       await getDbPool();
+      await ensureArticleTables(); // dijalankan lebih dulu & terpisah: kolom cover_image harus selalu ada
+    } catch (err) {
+      console.error('[MySQL] ensureArticleTables gagal:', err);
+    }
+    try {
+      await getDbPool();
       await syncAllMitraCommunities();
       await ensureInitialPasswords();
       await ensurePasswordResetTable();
       await ensureRevisionSchema();
-      await ensureArticleTables();
       await ensureSiteVisitsTable(await getPool());
       console.log('[MySQL] Database siap dan tersinkronisasi.');
     } catch (err) {

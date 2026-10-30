@@ -272,6 +272,13 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
     );
   }
 
+  // Kategori peserta mengikuti program: 1 jenis -> 1 pilihan; Tunanetra + Tunarungu -> 3 pilihan.
+  const programParticipants = getProgramParticipants(program);
+  const pesertaOptions = programParticipants.length > 1
+    ? [...programParticipants, programParticipants.join(' dan ')]
+    : programParticipants;
+  // Bila hanya ada 1 pilihan, otomatis terpilih; bila banyak, ikuti pilihan pengguna.
+  const kategoriPeserta = pesertaOptions.length === 1 ? pesertaOptions[0] : (pesertaOptions.includes(registration.kategoriDisabilitas) ? registration.kategoriDisabilitas : '');
   const photos = (program.fotoDokumentasi || []).filter(Boolean);
   const phase = getPhase(program);
   const wa = buildWaConfirmUrl(program.noWaLembaga || program.mitraPhone, program.namaProgram, registeredName);
@@ -288,7 +295,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
           noWa: registration.noWa.trim(),
           email: registration.email.trim(),
           usia: registration.usia.trim() === '' ? undefined : Number(registration.usia),
-          kategoriDisabilitas: registration.kategoriDisabilitas,
+          kategoriDisabilitas: kategoriPeserta,
           gender: registration.gender,
           alamat: registration.alamat.trim(),
           catatanKhusus: registration.catatanKhusus.trim(),
@@ -401,10 +408,9 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
                 </div>
                 <div>
                   <label htmlFor="tpq-dis" className={labelClass}>Kategori Peserta *</label>
-                  <select id="tpq-dis" required value={registration.kategoriDisabilitas} onChange={setField('kategoriDisabilitas')} className={inputClass}>
-                    <option value="">Pilih kategori peserta</option>
-                    <option value="Tunanetra">Tunanetra (Sensorik)</option>
-                    <option value="Tunarungu">Tunarungu (Sensorik)</option>
+                  <select id="tpq-dis" required value={kategoriPeserta} onChange={setField('kategoriDisabilitas')} className={inputClass}>
+                    {pesertaOptions.length > 1 && <option value="">Pilih kategori peserta</option>}
+                    {pesertaOptions.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </div>
               </div>

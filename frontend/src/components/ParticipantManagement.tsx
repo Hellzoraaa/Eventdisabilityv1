@@ -526,7 +526,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                           ? 'bg-teal-100 text-teal-800'
                           : 'bg-purple-100 text-purple-800'
                       }`}>
-                        {p.kategoriDisabilitas.replace('_', ' ')}
+                        {p.kategoriDisabilitas.replace(/_/g, ' ').split('+').join(' dan ')}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-on-surface">

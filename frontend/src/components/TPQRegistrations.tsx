@@ -129,6 +129,7 @@ export const TPQRegistrations: React.FC<Props> = ({ scope }) => {
           <option value="all">Semua Kategori</option>
           <option value="Tunanetra">Tunanetra</option>
           <option value="Tunarungu">Tunarungu</option>
+          <option value="Tunanetra dan Tunarungu">Tunanetra dan Tunarungu</option>
         </select>
         <button type="button" onClick={load} className="px-4 py-2 rounded-xl border border-outline-variant/40 text-[12px] font-semibold hover:bg-surface-container cursor-pointer inline-flex items-center gap-1.5">
           <Icon name="refresh" className="text-[18px]" />Muat Ulang

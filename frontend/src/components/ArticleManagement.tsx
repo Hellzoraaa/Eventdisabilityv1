@@ -2,8 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlignCenter, AlignLeft, AlignRight, Bold, FileText, ImagePlus, Italic,
   Link2, List, ListOrdered, Plus, Redo2, Save, Search, Send, Table2,
-  Trash2, Underline, Undo2, Type, Eye, Pencil, X,
+  Trash2, Underline, Undo2, Type, Eye, Pencil, X, ImageIcon, Upload,
 } from 'lucide-react';
+import {
+  FONT_ACCEPT, FONT_MAX_MB, fontFamilyFromFileName, isFontFile, loadArticleFonts,
+  readFileAsBase64, fontTagsToInlineStyle, type UploadedFont,
+} from '../utils/articleFonts.ts';
 
 type ArticleStatus = 'draft' | 'published';
 
@@ -13,6 +17,7 @@ type Article = {
   category: string;
   excerpt: string;
   content: string;
+  coverImage?: string;
   status: ArticleStatus;
   createdAt: string;
   updatedAt: string;
@@ -40,6 +45,45 @@ const DEFAULT_FONTS = [
   'Trebuchet MS',
   'Courier New',
 ];
+
+const COVER_MAX_FILE_MB = 5;
+const COVER_MAX_WIDTH = 1280;
+const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif';
+
+/** Perkecil & kompres foto sampul di browser agar ringan disimpan dan dimuat. */
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('File gambar tidak dapat dibaca.'));
+    reader.onload = () => {
+      // GIF dipertahankan apa adanya (agar animasi tidak hilang) bila sudah kecil.
+      if (file.type === 'image/gif' && file.size <= 1_500_000) {
+        resolve(String(reader.result));
+        return;
+      }
+      const img = new Image();
+      img.onerror = () => reject(new Error('File bukan gambar yang valid.'));
+      img.onload = () => {
+        const scale = Math.min(1, COVER_MAX_WIDTH / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Browser tidak mendukung pemrosesan gambar.'));
+          return;
+        }
+        // Latar putih agar PNG transparan tidak menjadi hitam saat dijadikan JPEG.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48];
 
@@ -115,12 +159,19 @@ export const ArticleManagement: React.FC = () => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState(DEFAULT_CATEGORIES[0]);
   const [excerpt, setExcerpt] = useState('');
+  const [coverImage, setCoverImage] = useState('');
+  const [coverBusy, setCoverBusy] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [font, setFont] = useState('Arial');
   const [fontSize, setFontSize] = useState(16);
 
   const [newCategory, setNewCategory] = useState('');
-  const [newFont, setNewFont] = useState('');
+  const [uploadedFonts, setUploadedFonts] = useState<UploadedFont[]>([]);
+  const [fontFile, setFontFile] = useState<File | null>(null);
+  const [fontFamilyName, setFontFamilyName] = useState('');
+  const [fontBusy, setFontBusy] = useState(false);
+  const fontInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
 
@@ -158,10 +209,14 @@ export const ArticleManagement: React.FC = () => {
     setApiError('');
 
     try {
-      const [articleData, settingsData] = await Promise.all([
+      const [articleData, settingsData, fontData] = await Promise.all([
         apiRequest('/admin/articles'),
         apiRequest('/admin/article-settings'),
+        apiRequest('/article-fonts').catch(() => ({ fonts: [] })),
       ]);
+
+      setUploadedFonts(Array.isArray(fontData.fonts) ? fontData.fonts : []);
+      loadArticleFonts(Date.now());
 
       setArticles(Array.isArray(articleData.articles) ? articleData.articles : []);
 
@@ -212,6 +267,12 @@ export const ArticleManagement: React.FC = () => {
   /* Daftar artikel                                                      */
   /* ------------------------------------------------------------------ */
 
+  // Font bawaan/sistem + font hasil impor, dipakai pada dropdown toolbar editor.
+  const allFonts = useMemo(
+    () => [...fonts, ...uploadedFonts.map((item) => item.family).filter((name) => !fonts.includes(name))],
+    [fonts, uploadedFonts],
+  );
+
   const filteredArticles = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
 
@@ -243,6 +304,8 @@ export const ArticleManagement: React.FC = () => {
     setTitle('');
     setCategory(categories[0] || 'Umum');
     setExcerpt('');
+    setCoverImage('');
+    if (coverInputRef.current) coverInputRef.current.value = '';
     setFont(fonts.includes('Arial') ? 'Arial' : fonts[0] || 'Arial');
     setFontSize(16);
     setPreview(false);
@@ -258,11 +321,13 @@ export const ArticleManagement: React.FC = () => {
     setTitle(article.title);
     setCategory(article.category);
     setExcerpt(article.excerpt);
+    setCoverImage(article.coverImage || '');
+    if (coverInputRef.current) coverInputRef.current.value = '';
     setPreview(false);
     setMessage(null);
 
     if (editorRef.current) {
-      editorRef.current.innerHTML = sanitizeHtml(article.content);
+      editorRef.current.innerHTML = fontTagsToInlineStyle(sanitizeHtml(article.content));
     }
   };
 
@@ -306,7 +371,10 @@ export const ArticleManagement: React.FC = () => {
     restoreSelection();
 
     if (property === 'fontName') {
+      // styleWithCSS: hasilnya <span style="font-family:..."> (bukan <font face>) agar tidak dikalahkan CSS global.
+      document.execCommand('styleWithCSS', false, 'true');
       document.execCommand('fontName', false, value);
+      document.execCommand('styleWithCSS', false, 'false');
     } else {
       document.execCommand('fontSize', false, '7');
 
@@ -355,6 +423,33 @@ export const ArticleManagement: React.FC = () => {
     runCommand('insertImage', url);
   };
 
+  const handleCoverChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!COVER_ACCEPT.split(',').includes(file.type)) {
+      setMessage({ type: 'error', text: 'Format foto sampul harus PNG, JPG, WEBP, atau GIF.' });
+      return;
+    }
+
+    if (file.size > COVER_MAX_FILE_MB * 1024 * 1024) {
+      setMessage({ type: 'error', text: `Ukuran foto sampul maksimal ${COVER_MAX_FILE_MB} MB.` });
+      return;
+    }
+
+    setCoverBusy(true);
+    setMessage(null);
+
+    try {
+      setCoverImage(await compressImage(file));
+    } catch (error) {
+      setMessage({ type: 'error', text: errorText(error, 'Foto sampul gagal diproses.') });
+    } finally {
+      setCoverBusy(false);
+    }
+  };
+
   const insertTable = () => {
     runCommand(
       'insertHTML',
@@ -375,7 +470,7 @@ export const ArticleManagement: React.FC = () => {
 
   const saveArticle = async (status: ArticleStatus) => {
     const cleanTitle = title.trim();
-    const content = sanitizeHtml(editorRef.current?.innerHTML.trim() || '');
+    const content = fontTagsToInlineStyle(sanitizeHtml(editorRef.current?.innerHTML.trim() || ''));
 
     if (!cleanTitle) {
       setMessage({ type: 'error', text: 'Judul artikel wajib diisi.' });
@@ -405,6 +500,7 @@ export const ArticleManagement: React.FC = () => {
       category,
       excerpt: excerpt.trim(),
       content,
+      coverImage,
       status,
       createdAt: existing?.createdAt || now,
       updatedAt: now,
@@ -529,23 +625,87 @@ export const ArticleManagement: React.FC = () => {
     }
   };
 
-  const addFont = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleFontFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) return;
 
-    const value = newFont.trim();
-    if (!value) return;
-
-    if (fonts.some((item) => item.toLocaleLowerCase() === value.toLocaleLowerCase())) {
-      setMessage({ type: 'error', text: 'Font sudah ada di daftar.' });
+    if (!isFontFile(file)) {
+      setMessage({ type: 'error', text: 'Format tidak didukung. Pilih file TTF, OTF, WOFF, atau WOFF2.' });
+      event.target.value = '';
       return;
     }
 
-    const next = [...fonts, value];
+    if (file.size > FONT_MAX_MB * 1024 * 1024) {
+      setMessage({ type: 'error', text: `Ukuran file font maksimal ${FONT_MAX_MB} MB.` });
+      event.target.value = '';
+      return;
+    }
 
-    if (await persistSettings(categories, next)) {
-      setFonts(next);
-      setFont(value);
-      setNewFont('');
+    setFontFile(file);
+    setFontFamilyName(fontFamilyFromFileName(file.name));
+  };
+
+  const importFont = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!fontFile) {
+      setMessage({ type: 'error', text: 'Pilih file font terlebih dahulu.' });
+      return;
+    }
+
+    const family = fontFamilyName.trim();
+    if (!family) {
+      setMessage({ type: 'error', text: 'Nama font wajib diisi.' });
+      return;
+    }
+
+    if (
+      [...fonts, ...uploadedFonts.map((item) => item.family)].some(
+        (item) => item.toLocaleLowerCase() === family.toLocaleLowerCase(),
+      )
+    ) {
+      setMessage({ type: 'error', text: 'Nama font sudah ada di daftar.' });
+      return;
+    }
+
+    setFontBusy(true);
+    try {
+      const data = await readFileAsBase64(fontFile);
+      const result = await apiRequest('/admin/article-fonts', {
+        method: 'POST',
+        body: JSON.stringify({ family, fileName: fontFile.name, data }),
+      });
+
+      const created: UploadedFont = result.font;
+      setUploadedFonts((current) => [...current, created]);
+      setFont(created.family);
+      loadArticleFonts(Date.now());
+      setFontFile(null);
+      setFontFamilyName('');
+      if (fontInputRef.current) fontInputRef.current.value = '';
+      setMessage({ type: 'success', text: `Font “${created.family}” berhasil diimpor.` });
+    } catch (error) {
+      setMessage({ type: 'error', text: errorText(error, 'Font gagal diimpor.') });
+    } finally {
+      setFontBusy(false);
+    }
+  };
+
+  const deleteUploadedFont = async (item: UploadedFont) => {
+    if (
+      !window.confirm(
+        `Hapus font “${item.family}”? Artikel yang memakai font ini akan tampil dengan font cadangan.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/admin/article-fonts/${item.id}`, { method: 'DELETE' });
+      setUploadedFonts((current) => current.filter((entry) => entry.id !== item.id));
+      if (font === item.family) setFont(fonts[0] || 'Arial');
+      loadArticleFonts(Date.now());
+    } catch (error) {
+      setMessage({ type: 'error', text: errorText(error, 'Font gagal dihapus.') });
     }
   };
 
@@ -730,6 +890,14 @@ export const ArticleManagement: React.FC = () => {
                       : 'border-slate-200 bg-white'
                   }`}
                 >
+                  {article.coverImage && (
+                    <img
+                      src={article.coverImage}
+                      alt=""
+                      loading="lazy"
+                      className="mb-2 aspect-[16/9] w-full rounded object-cover"
+                    />
+                  )}
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-slate-900">
@@ -851,6 +1019,67 @@ export const ArticleManagement: React.FC = () => {
             </div>
           </div>
 
+          {/* Foto sampul */}
+          <div>
+            <span id="cover-label" className="mb-1 block text-sm font-medium text-slate-800">
+              Foto sampul
+            </span>
+
+            <input
+              ref={coverInputRef}
+              id="article-cover"
+              type="file"
+              accept={COVER_ACCEPT}
+              onChange={(event) => void handleCoverChange(event)}
+              className="sr-only"
+              aria-labelledby="cover-label"
+            />
+
+            {coverImage ? (
+              <div className="space-y-2">
+                <img
+                  src={coverImage}
+                  alt="Pratinjau foto sampul artikel"
+                  className="aspect-[16/9] max-h-64 w-full rounded-md border border-slate-200 object-cover"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={coverBusy}
+                    onClick={() => coverInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-60"
+                  >
+                    <Upload aria-hidden="true" className="h-4 w-4" />
+                    {coverBusy ? 'Memproses…' : 'Ganti foto'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCoverImage('')}
+                    className="inline-flex items-center gap-2 rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                  >
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
+                    Hapus foto
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={coverBusy}
+                onClick={() => coverInputRef.current?.click()}
+                className="flex w-full flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-700 hover:border-blue-600 hover:bg-blue-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-60"
+              >
+                <ImageIcon aria-hidden="true" className="h-6 w-6 text-slate-500" />
+                <span className="font-medium">
+                  {coverBusy ? 'Memproses gambar…' : 'Klik untuk unggah foto sampul'}
+                </span>
+                <span className="text-xs text-slate-600">
+                  PNG, JPG, WEBP, atau GIF · maks. {COVER_MAX_FILE_MB} MB · rasio 16:9 disarankan
+                </span>
+              </button>
+            )}
+          </div>
+
           {/* Toolbar */}
           <div
             role="toolbar"
@@ -873,7 +1102,7 @@ export const ArticleManagement: React.FC = () => {
               }}
               className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm"
             >
-              {fonts.map((item) => (
+              {allFonts.map((item) => (
                 <option key={item} value={item}>
                   {item}
                 </option>
@@ -942,6 +1171,13 @@ export const ArticleManagement: React.FC = () => {
             <div>
               <h3 className="mb-1 text-sm font-medium text-slate-800">Pratinjau</h3>
               <article className="min-h-[20rem] rounded-md border border-slate-200 bg-white p-4">
+                {coverImage && (
+                  <img
+                    src={coverImage}
+                    alt=""
+                    className="mb-4 aspect-[16/9] w-full rounded-md object-cover"
+                  />
+                )}
                 <h4 className="mb-1 text-2xl font-semibold text-slate-900">
                   {title || 'Tanpa judul'}
                 </h4>
@@ -1033,24 +1269,43 @@ export const ArticleManagement: React.FC = () => {
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-slate-900">Font</h3>
 
-          <form onSubmit={(event) => void addFont(event)} className="flex gap-2">
-            <label htmlFor="new-font" className="sr-only">
-              Nama font baru
-            </label>
-            <input
-              id="new-font"
-              value={newFont}
-              onChange={(event) => setNewFont(event.target.value)}
-              placeholder="Font baru, mis. Calibri"
-              className={inputClass}
-            />
-            <button
-              type="submit"
-              className="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-            >
-              <Plus aria-hidden="true" className="h-4 w-4" />
-              Tambah
-            </button>
+          <form onSubmit={(event) => void importFont(event)} className="space-y-2">
+            <div>
+              <label htmlFor="font-file" className="mb-1 block text-xs font-medium text-slate-700">
+                File font (TTF, OTF, WOFF, WOFF2 · maks {FONT_MAX_MB} MB)
+              </label>
+              <input
+                id="font-file"
+                ref={fontInputRef}
+                type="file"
+                accept={FONT_ACCEPT}
+                onChange={handleFontFileChange}
+                className="block w-full text-sm text-slate-700 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-800 hover:file:bg-slate-200"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <label htmlFor="new-font" className="sr-only">
+                Nama font
+              </label>
+              <input
+                id="new-font"
+                value={fontFamilyName}
+                onChange={(event) => setFontFamilyName(event.target.value)}
+                placeholder="Nama font yang tampil di daftar"
+                maxLength={60}
+                disabled={!fontFile}
+                className={inputClass}
+              />
+              <button
+                type="submit"
+                disabled={!fontFile || fontBusy}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Upload aria-hidden="true" className="h-4 w-4" />
+                {fontBusy ? 'Mengimpor…' : 'Impor font'}
+              </button>
+            </div>
           </form>
 
           <ul className="flex flex-wrap gap-2">
@@ -1066,6 +1321,27 @@ export const ArticleManagement: React.FC = () => {
                   aria-label={`Hapus font ${item}`}
                   onClick={() => void deleteFont(item)}
                   className="rounded-full p-1 hover:bg-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                >
+                  <X aria-hidden="true" className="h-3 w-3" />
+                </button>
+              </li>
+            ))}
+
+            {uploadedFonts.map((item) => (
+              <li
+                key={`file-${item.id}`}
+                style={{ fontFamily: `"${item.family}", sans-serif` }}
+                className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 py-1 pl-3 pr-1 text-xs text-slate-800"
+              >
+                {item.family}
+                <span className="rounded bg-emerald-100 px-1 text-[10px] font-semibold uppercase text-emerald-800">
+                  {item.format}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Hapus font ${item.family}`}
+                  onClick={() => void deleteUploadedFont(item)}
+                  className="rounded-full p-1 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                 >
                   <X aria-hidden="true" className="h-3 w-3" />
                 </button>
