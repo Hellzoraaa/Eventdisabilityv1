@@ -197,6 +197,18 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     () => [...events, ...publishedTPQ.filter(p => Number(p.latitude) && Number(p.longitude)).map(tpqToMapItem)],
     [events, publishedTPQ]
   );
+
+  // Hitung cakupan provinsi dari data yang menjadi sumber Peta Lokasi.
+  // Hanya lokasi dengan koordinat dan nama provinsi yang valid yang dihitung.
+  // Nama provinsi dinormalisasi agar variasi spasi/huruf tidak dihitung ganda.
+  const cakupanProvinsiPeta = useMemo(() => {
+    const provinsi = mapEvents
+      .filter(item => Number(item.latitude) && Number(item.longitude))
+      .map(item => String(item.provinsi || '').trim().replace(/\\s+/g, ' ').toLowerCase())
+      .filter(Boolean);
+
+    return new Set(provinsi).size;
+  }, [mapEvents]);
   const openTPQFromMap = (mapId: string) => {
     const found = publishedTPQ.find(p => p.id === tpqIdFromMapId(mapId));
     if (found) openTPQPage(found.id);
@@ -1583,8 +1595,8 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             />
             <StatCard
               className="sm:col-span-2"
-              value={new Set(communities.map(c => c.provinsi)).size}
-              label="Cakupan Lokasi Event & Pendidikan"
+              value={cakupanProvinsiPeta}
+              label="Cakupan Provinsi Event & Pendidikan"
             />
             <StatCard
               className="sm:col-span-2"
