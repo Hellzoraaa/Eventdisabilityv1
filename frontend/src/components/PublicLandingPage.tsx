@@ -287,6 +287,13 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
       });
   }, [events, users]);
 
+  // Jumlah seluruh Event aktif/disetujui + Pendidikan TPQ yang sudah
+  // disetujui dan diizinkan untuk dipublikasikan.
+  // Kedua jenis kegiatan dijumlahkan agar 1 Event + 1 TPQ = 2.
+  const totalKegiatanBerlangsung = useMemo(() => {
+    return activeEvents.length + publishedTPQ.length;
+  }, [activeEvents, publishedTPQ]);
+
   // Search & Filter States
   const [heroSearch, setHeroSearch] = useState('');
   const [heroLocation, setHeroLocation] = useState('');
@@ -1585,8 +1592,8 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 sm:gap-6 mb-12">
             <StatCard
               className="sm:col-span-2"
-              value={activeEvents.length}
-              label="Event Yang Sedang Berlangsung"
+              value={totalKegiatanBerlangsung}
+              label="Event & Pendidikan Yang Sedang Berlangsung"
             />
             <StatCard
               className="sm:col-span-2"
