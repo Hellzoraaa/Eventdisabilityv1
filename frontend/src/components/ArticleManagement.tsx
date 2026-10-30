@@ -50,8 +50,12 @@ const COVER_MAX_FILE_MB = 5;
 const COVER_MAX_WIDTH = 1280;
 const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif';
 
+// Gambar yang disisipkan di isi artikel (bukan sampul).
+const INLINE_MAX_FILE_MB = 5;
+const INLINE_MAX_WIDTH = 1024;
+
 /** Perkecil & kompres foto sampul di browser agar ringan disimpan dan dimuat. */
-function compressImage(file: File): Promise<string> {
+function compressImage(file: File, maxWidth: number = COVER_MAX_WIDTH): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('File gambar tidak dapat dibaca.'));
@@ -64,7 +68,7 @@ function compressImage(file: File): Promise<string> {
       const img = new Image();
       img.onerror = () => reject(new Error('File bukan gambar yang valid.'));
       img.onload = () => {
-        const scale = Math.min(1, COVER_MAX_WIDTH / img.width);
+        const scale = Math.min(1, maxWidth / img.width);
         const canvas = document.createElement('canvas');
         canvas.width = Math.round(img.width * scale);
         canvas.height = Math.round(img.height * scale);
@@ -162,6 +166,8 @@ export const ArticleManagement: React.FC = () => {
   const [coverImage, setCoverImage] = useState('');
   const [coverBusy, setCoverBusy] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const inlineImageInputRef = useRef<HTMLInputElement>(null);
+  const [inlineBusy, setInlineBusy] = useState(false);
 
   const [font, setFont] = useState('Arial');
   const [fontSize, setFontSize] = useState(16);
@@ -411,16 +417,41 @@ export const ArticleManagement: React.FC = () => {
     runCommand('createLink', url);
   };
 
+  // Posisi kursor sudah tersimpan lewat rememberSelection, jadi cukup buka pemilih file.
   const addImage = () => {
-    const url = window.prompt('Masukkan URL gambar (https://...)')?.trim();
-    if (!url) return;
+    inlineImageInputRef.current?.click();
+  };
 
-    if (!isAllowedUrl(url, ['http:', 'https:'])) {
-      setMessage({ type: 'error', text: 'URL gambar tidak valid.' });
+  const handleInlineImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!COVER_ACCEPT.split(',').includes(file.type)) {
+      setMessage({ type: 'error', text: 'Format gambar harus PNG, JPG, WEBP, atau GIF.' });
       return;
     }
 
-    runCommand('insertImage', url);
+    if (file.size > INLINE_MAX_FILE_MB * 1024 * 1024) {
+      setMessage({ type: 'error', text: `Ukuran gambar maksimal ${INLINE_MAX_FILE_MB} MB.` });
+      return;
+    }
+
+    setInlineBusy(true);
+    setMessage(null);
+
+    try {
+      const dataUrl = await compressImage(file, INLINE_MAX_WIDTH);
+      const alt = file.name.replace(/\.[^.]+$/, '').replace(/"/g, '');
+      runCommand(
+        'insertHTML',
+        `<img src="${dataUrl}" alt="${alt}" style="max-width:100%;height:auto" />`,
+      );
+    } catch (error) {
+      setMessage({ type: 'error', text: errorText(error, 'Gambar gagal diproses.') });
+    } finally {
+      setInlineBusy(false);
+    }
   };
 
   const handleCoverChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -747,7 +778,7 @@ export const ArticleManagement: React.FC = () => {
     { label: 'Urungkan', icon: Undo2, action: () => runCommand('undo') },
     { label: 'Ulangi', icon: Redo2, action: () => runCommand('redo') },
     { label: 'Sisipkan tautan', icon: Link2, action: addLink },
-    { label: 'Sisipkan gambar', icon: ImagePlus, action: addImage },
+    { label: 'Unggah gambar dari file', icon: ImagePlus, action: addImage },
     { label: 'Sisipkan tabel', icon: Table2, action: insertTable },
   ];
 
@@ -1080,6 +1111,16 @@ export const ArticleManagement: React.FC = () => {
             )}
           </div>
 
+          <input
+            ref={inlineImageInputRef}
+            type="file"
+            accept={COVER_ACCEPT}
+            onChange={(event) => void handleInlineImageChange(event)}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+
           {/* Toolbar */}
           <div
             role="toolbar"
@@ -1140,6 +1181,7 @@ export const ArticleManagement: React.FC = () => {
                 // mencegah editor kehilangan seleksi saat tombol diklik
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={action}
+                disabled={label === 'Unggah gambar dari file' && inlineBusy}
                 className={iconButtonClass}
               >
                 <Icon aria-hidden="true" className="h-4 w-4" />
