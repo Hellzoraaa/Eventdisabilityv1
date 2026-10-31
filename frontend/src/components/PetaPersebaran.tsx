@@ -159,6 +159,8 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
   const [selectedProvince, setSelectedProvince] = useState<string>('all');
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const EVENTS_PER_PAGE = 6;
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [activeEventModal, setActiveEventModal] = useState<TrainingProposal | null>(null);
 
@@ -332,6 +334,18 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
       return matchesCategory && matchesJenis && matchesProvince && matchesCity && matchesSearch;
     });
   }, [activeEvents, selectedCategory, selectedJenis, selectedProvince, selectedCity, searchQuery, activeMasterDisabilities]);
+
+  // Pagination untuk daftar Event & Pendidikan (5 kartu per halaman).
+  const totalPages = Math.max(1, Math.ceil(filteredEvents.length / EVENTS_PER_PAGE));
+  const paginatedEvents = filteredEvents.slice(
+    (currentPage - 1) * EVENTS_PER_PAGE,
+    currentPage * EVENTS_PER_PAGE
+  );
+
+  // Kembali ke halaman pertama setiap kali hasil filter berubah.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, selectedJenis, selectedProvince, selectedCity, searchQuery, activeEvents]);
 
   // Check if any filter is currently applied
   const isFilterActive = selectedCategory !== 'all' || selectedJenis !== 'all' || selectedProvince !== 'all' || selectedCity !== 'all' || searchQuery.trim() !== '';
@@ -682,7 +696,7 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
                 )}
               </div>
             ) : (
-              filteredEvents.map(ev => {
+              paginatedEvents.map(ev => {
                 const isSelected = selectedEventId === ev.id;
                 const cat = getEventDisabilityCategory(ev, activeMasterDisabilities);
                 const pinColor = isTPQMapId(String(ev.id)) ? MAP_COLOR_PENDIDIKAN : MAP_COLOR_EVENT;
@@ -779,6 +793,48 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
               })
             )}
           </div>
+
+          {(
+            <nav
+              aria-label="Navigasi halaman daftar event dan pendidikan"
+              className="flex flex-wrap items-center justify-center gap-2 pt-3"
+            >
+              <button
+                type="button"
+                onClick={() => setCurrentPage(page => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                aria-label="Halaman sebelumnya"
+                className="w-9 h-9 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                ‹
+              </button>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map(page => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  aria-label={`Halaman ${page}`}
+                  aria-current={currentPage === page ? 'page' : undefined}
+                  className={`w-9 h-9 rounded-full border text-[12px] font-semibold transition-colors ${
+                    currentPage === page
+                      ? 'bg-[#006316] border-[#006316] text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+                aria-label="Halaman berikutnya"
+                className="w-9 h-9 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                ›
+              </button>
+            </nav>
+          )}
         </div>
       </div>
 

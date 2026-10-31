@@ -551,6 +551,17 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
   // Mitra communities are displayed directly without landing-page filters.
   const filteredMitra = communities;
+  const MITRA_PER_PAGE = 6;
+  const [mitraCurrentPage, setMitraCurrentPage] = useState(1);
+  const mitraTotalPages = Math.max(1, Math.ceil(filteredMitra.length / MITRA_PER_PAGE));
+  const paginatedMitra = filteredMitra.slice(
+    (mitraCurrentPage - 1) * MITRA_PER_PAGE,
+    mitraCurrentPage * MITRA_PER_PAGE
+  );
+
+  useEffect(() => {
+    setMitraCurrentPage(1);
+  }, [communities]);
 
   // Keep regDisability in sync with available active disabilities
   React.useEffect(() => {
@@ -2022,7 +2033,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredMitra.map(comm => {
+            {paginatedMitra.map(comm => {
               const activeEventsForThisMitra = activeEvents.filter(
                 e => (e.mitraOrg || '').toLowerCase() === comm.namaLembaga.toLowerCase() ||
                   (e.lokasiDanAlamat || '').toLowerCase().includes(comm.namaLembaga.toLowerCase())
@@ -2111,18 +2122,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                       </div>
                     )}
 
-                    {/* Santri Count */}
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-100 pt-2.5 mb-3">
-                      <span className="flex items-center gap-1">
-                        <Icon name="group" className="text-[15px] text-slate-400" />
-                        <span>{comm.jumlahSantri || 0} Santri Binaan</span>
-                      </span>
-                      {activeEventsForThisMitra.length > 0 && (
-                        <span className="font-semibold text-emerald-700">
-                          {activeEventsForThisMitra.length} Event Aktif
-                        </span>
-                      )}
-                    </div>
+                    
                   </div>
 
                   {/* Card Actions */}
@@ -2158,6 +2158,47 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               );
             })}
           </div>
+        )}
+        {filteredMitra.length > 0 && (
+          <nav
+            aria-label="Navigasi halaman Mitra dan Yayasan"
+            className="flex flex-wrap items-center justify-center gap-2 pt-6"
+          >
+            <button
+              type="button"
+              onClick={() => setMitraCurrentPage(page => Math.max(1, page - 1))}
+              disabled={mitraCurrentPage === 1}
+              aria-label="Halaman mitra sebelumnya"
+              className="w-9 h-9 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              ‹
+            </button>
+            {Array.from({ length: mitraTotalPages }, (_, index) => index + 1).map(page => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setMitraCurrentPage(page)}
+                aria-label={`Halaman mitra ${page}`}
+                aria-current={mitraCurrentPage === page ? 'page' : undefined}
+                className={`w-9 h-9 rounded-full border text-[12px] font-semibold transition-colors ${
+                  mitraCurrentPage === page
+                    ? 'bg-[#006316] border-[#006316] text-white shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setMitraCurrentPage(page => Math.min(mitraTotalPages, page + 1))}
+              disabled={mitraCurrentPage === mitraTotalPages}
+              aria-label="Halaman mitra berikutnya"
+              className="w-9 h-9 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              ›
+            </button>
+          </nav>
         )}
       </section>
       {/* 3. Bottom Accordion: Frequently Asked Questions (FAQ) */}
@@ -2883,18 +2924,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-slate-200/60 pt-2 text-[12px]">
-                    <span className="flex items-center gap-1.5 text-slate-600">
-                      <Icon name="group" className="text-[16px] text-slate-400" />
-                      <span>Santri Binaan: <strong>{selectedMitraDetail.jumlahSantri || 0} Orang</strong></span>
-                    </span>
-                    {selectedMitraDetail.kontakWa && (
-                      <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-                        <Icon name="call" className="text-[16px]" />
-                        <span>{selectedMitraDetail.kontakWa}</span>
-                      </span>
-                    )}
-                  </div>
+                 
                 </div>
 
                 {/* Kategori Disabilitas Binaan */}
