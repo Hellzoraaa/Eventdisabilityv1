@@ -302,6 +302,8 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   const [filterCategory, setFilterCategory] = useState('Semua');
   const [filterDisability, setFilterDisability] = useState('Semua');
   const [filterCity, setFilterCity] = useState('Semua');
+  const EVENTS_CATALOG_PER_PAGE = 6;
+  const [eventCatalogCurrentPage, setEventCatalogCurrentPage] = useState(1);
 
   const [facilityJBI, setFacilityJBI] = useState(false);
   const [facilityWheelchair, setFacilityWheelchair] = useState(false);
@@ -768,6 +770,19 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     facilityBraille,
     facilityOnline,
   ]);
+
+  // Pagination Katalog Event: maksimal 6 kartu (3 kolom x 2 baris).
+  // Diletakkan setelah filteredEvents dideklarasikan agar tidak terjadi TS2448/TS2454.
+  const eventCatalogTotalPages = Math.max(1, Math.ceil(filteredEvents.length / EVENTS_CATALOG_PER_PAGE));
+  const paginatedCatalogEvents = filteredEvents.slice(
+    (eventCatalogCurrentPage - 1) * EVENTS_CATALOG_PER_PAGE,
+    eventCatalogCurrentPage * EVENTS_CATALOG_PER_PAGE
+  );
+
+  // Kembali ke halaman pertama setiap kali pencarian atau filter berubah.
+  useEffect(() => {
+    setEventCatalogCurrentPage(1);
+  }, [heroSearch, heroLocation, filterKeyword, filterCategory, filterDisability, filterCity, facilityJBI, facilityWheelchair, facilityBraille, facilityOnline, eventTipe, activeEvents]);
 
   const handleOpenDetailModal = (ev: TrainingProposal, step: 'detail' | 'form' = 'detail') => {
     openEventPage(ev.id, step);
@@ -1880,11 +1895,11 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredEvents.map(event => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {paginatedCatalogEvents.map(event => (
               <div
                 key={event.id}
-                className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-5 sm:gap-6 group"
+                className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col items-start gap-4 group h-full"
               >
                 {/* Left: Partner / Event Logo Container - Perfectly Fitted */}
                 <div className="w-24 sm:w-28 h-20 sm:h-22 shrink-0 flex items-center justify-center p-1.5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs overflow-hidden group-hover:border-blue-400 group-hover:shadow-xs transition-all">
@@ -1952,10 +1967,10 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 </div>
 
                 {/* Right: Action Button */}
-                <div className="shrink-0 self-end md:self-center">
+                <div className="shrink-0 w-full mt-auto">
                   <button
                     onClick={() => handleOpenDetailModal(event, 'detail')}
-                    className="px-6 py-2.5 rounded-full bg-[#006316] hover:bg-[#006316] text-white text-[13px] font-bold tracking-wide transition-all shadow-xs cursor-pointer whitespace-nowrap"
+                    className="w-full px-6 py-2.5 rounded-full bg-[#006316] hover:bg-[#004D11] text-white text-[13px] font-bold tracking-wide transition-all shadow-xs cursor-pointer whitespace-nowrap"
                   >
                     Lihat Detail
                   </button>
@@ -1963,6 +1978,15 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               </div>
             ))}
           </div>
+        )}
+        {filteredEvents.length > 0 && (
+          <nav aria-label="Navigasi halaman katalog event" className="flex flex-wrap items-center justify-center gap-2 pt-6">
+            <button type="button" onClick={() => setEventCatalogCurrentPage(page => Math.max(1, page - 1))} disabled={eventCatalogCurrentPage === 1} aria-label="Halaman sebelumnya" className="w-9 h-9 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">‹</button>
+            {Array.from({ length: eventCatalogTotalPages }, (_, index) => index + 1).map(page => (
+              <button key={page} type="button" onClick={() => setEventCatalogCurrentPage(page)} aria-label={`Halaman ${page}`} aria-current={eventCatalogCurrentPage === page ? 'page' : undefined} className={`w-9 h-9 rounded-full border text-[12px] font-semibold transition-colors ${eventCatalogCurrentPage === page ? 'bg-[#006316] border-[#006316] text-white shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{page}</button>
+            ))}
+            <button type="button" onClick={() => setEventCatalogCurrentPage(page => Math.min(eventCatalogTotalPages, page + 1))} disabled={eventCatalogCurrentPage === eventCatalogTotalPages} aria-label="Halaman berikutnya" className="w-9 h-9 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">›</button>
+          </nav>
         )}
       </section>
 

@@ -594,7 +594,6 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
 // Section homepage
 // ---------------------------------------------------------------------------
 
-const INITIAL_VISIBLE = 6;
 
 interface TPQHomeSectionProps {
   programs: TPQProgram[];
@@ -646,7 +645,8 @@ export const TPQHomeSection: React.FC<TPQHomeSectionProps> = ({ programs, onOpen
   const [kota, setKota] = useState('Semua');
   // Terapkan filter jenis peserta yang dipilih dari menu navbar.
   useEffect(() => { if (pesertaRequest) setPeserta(pesertaRequest.label); }, [pesertaRequest]);
-  const [showAll, setShowAll] = useState(false);
+  const ITEMS_PER_PAGE = 6;
+  const [currentPage, setCurrentPage] = useState(1);
 
   const published = useMemo(() => programs.filter(isTPQPublished), [programs]);
 
@@ -704,7 +704,12 @@ export const TPQHomeSection: React.FC<TPQHomeSectionProps> = ({ programs, onOpen
       });
   }, [published, keyword, peserta, kategori, kota]);
 
-  const visible = showAll ? filtered : filtered.slice(0, INITIAL_VISIBLE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const visible = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Kembali ke halaman pertama setiap kali pencarian atau filter berubah.
+  useEffect(() => { setCurrentPage(1); }, [keyword, peserta, kategori, kota, published]);
+
   const hasFilter = keyword.trim() !== '' || peserta !== ALL || kategori !== ALL || kota !== 'Semua';
 
   return (
@@ -857,16 +862,14 @@ export const TPQHomeSection: React.FC<TPQHomeSectionProps> = ({ programs, onOpen
               );
             })}
           </div>
-          {filtered.length > INITIAL_VISIBLE && (
-            <div className="text-center mt-8">
-              <button
-                type="button"
-                onClick={() => setShowAll(v => !v)}
-                className="px-6 py-2.5 rounded-full border border-slate-300 text-slate-700 hover:bg-slate-50 text-[13px] font-semibold cursor-pointer"
-              >
-                {showAll ? 'Tampilkan lebih sedikit' : `Tampilkan semua (${filtered.length})`}
-              </button>
-            </div>
+          {filtered.length > 0 && (
+            <nav aria-label="Navigasi halaman katalog pendidikan" className="flex flex-wrap items-center justify-center gap-2 pt-6">
+              <button type="button" onClick={() => setCurrentPage(page => Math.max(1, page - 1))} disabled={currentPage === 1} aria-label="Halaman sebelumnya" className="w-9 h-9 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">‹</button>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map(page => (
+                <button key={page} type="button" onClick={() => setCurrentPage(page)} aria-label={`Halaman ${page}`} aria-current={currentPage === page ? 'page' : undefined} className={`w-9 h-9 rounded-full border text-[12px] font-semibold transition-colors ${currentPage === page ? 'bg-[#006316] border-[#006316] text-white shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{page}</button>
+              ))}
+              <button type="button" onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages} aria-label="Halaman berikutnya" className="w-9 h-9 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">›</button>
+            </nav>
           )}
         </>
       )}
