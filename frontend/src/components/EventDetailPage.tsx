@@ -3,6 +3,7 @@ import { Icon } from './Icon.tsx';
 import { TrainingProposal, DisabilityMaster, Participant } from '../types.ts';
 import { PartnerLogo } from './PartnerLogo.tsx';
 import { VerifiedBadge } from './VerifiedBadge.tsx';
+import { isRegistrationDeadlinePassed } from '../utils/registrationStatus.ts';
 
 /* ------------------------------------------------------------------ */
 /* Routing berbasis hash: #event/<id>  dan  #event/<id>/daftar         */
@@ -295,6 +296,9 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
   const pendaftar = (event.jumlahPendaftar || 0) + (eventFromApp ? 0 : addedLocally);
   const sisaKuota = Math.max(0, kuotaMax - pendaftar);
   const isFull = sisaKuota <= 0;
+  // Batas pendaftaran sudah lewat -> pendaftaran ditutup (label "Berakhir", tombol daftar nonaktif).
+  const isExpired = isRegistrationDeadlinePassed(event.batasPendaftaran);
+  const registrationClosed = isFull || isExpired;
   const kuotaPercent = Math.min(100, Math.round((pendaftar / Math.max(1, kuotaMax)) * 100));
   const requirements = getPersyaratanItems(event.persyaratan);
   const photos = event.fotoDokumentasi || [];
@@ -316,7 +320,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting || isFull) return;
+    if (isSubmitting || registrationClosed) return;
     if (!regName.trim() || !regWa.trim() || !regEmail.trim()) return;
 
     setIsSubmitting(true);
@@ -454,9 +458,9 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
               </div>
             </div>
 
-            {isFull && (
+            {registrationClosed && (
               <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-[13px] text-rose-800">
-                Kuota event ini sudah penuh, pendaftaran baru tidak dapat diterima.
+                {isExpired ? 'Batas pendaftaran event ini sudah lewat, pendaftaran baru tidak dapat diterima.' : 'Kuota event ini sudah penuh, pendaftaran baru tidak dapat diterima.'}
               </div>
             )}
 
@@ -537,7 +541,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || isFull}
+                  disabled={isSubmitting || registrationClosed}
                   className="px-8 py-2.5 rounded-xl bg-[#0b63e5] hover:bg-[#0952c4] text-white font-extrabold text-[13px] shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? 'Mengirim…' : 'Kirim Pendaftaran'}
@@ -571,8 +575,8 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-3 py-1 rounded-md bg-cyan-50 text-[#005a71] text-[11px] font-bold border border-cyan-100">Pelatihan</span>
             <span className="px-3 py-1 rounded-md bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-100">{eventDisability !== '—' ? eventDisability : 'Umum / Non-Disabilitas'}</span>
-            <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${isFull ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>
-              {isFull ? 'Kuota Penuh' : 'Pendaftaran Dibuka'}
+            <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${isExpired ? 'bg-slate-200 text-slate-700' : isFull ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>
+              {isExpired ? 'Pendaftaran Berakhir' : isFull ? 'Kuota Penuh' : 'Pendaftaran Dibuka'}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight tracking-tight">{event.namaKegiatan}</h1>
@@ -697,7 +701,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Batas Pendaftaran</div>
                   <div className="text-[17px] sm:text-[18px] font-extrabold text-slate-900 mt-0.5">{formatTanggal(event.batasPendaftaran)}</div>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-white text-[11px] font-bold tracking-wide ${isFull ? 'bg-rose-600' : 'bg-emerald-600'}`}>{isFull ? 'Penuh' : 'Buka'}</span>
+                <span className={`px-3 py-1 rounded-full text-white text-[11px] font-bold tracking-wide ${isExpired ? 'bg-slate-500' : isFull ? 'bg-rose-600' : 'bg-emerald-600'}`}>{isExpired ? 'Berakhir' : isFull ? 'Penuh' : 'Buka'}</span>
               </div>
 
               <div>
@@ -713,10 +717,10 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
               <button
                 type="button"
                 onClick={() => openEventPage(event.id, 'form')}
-                disabled={isFull}
+                disabled={registrationClosed}
                 className="w-full py-3.5 px-6 rounded-xl bg-[#0b63e5] hover:bg-[#0952c4] text-white font-extrabold text-[14px] sm:text-[15px] tracking-wide transition-all shadow-md hover:shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isFull ? 'KUOTA PENUH' : 'DAFTAR SEKARANG'}
+                {isExpired ? 'PENDAFTARAN BERAKHIR' : isFull ? 'KUOTA PENUH' : 'DAFTAR SEKARANG'}
               </button>
               
 

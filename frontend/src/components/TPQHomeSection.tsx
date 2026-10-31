@@ -45,6 +45,8 @@ export const tpqToMapItem = (p: TPQProgram): TrainingProposal =>
     targetPeserta: p.targetPeserta || '',
   } as unknown as TrainingProposal);
 
+import { isRegistrationDeadlinePassed } from '../utils/registrationStatus.ts';
+
 const todayIso = () => {
   const d = new Date();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -65,13 +67,14 @@ const getPhase = (p: TPQProgram): Phase => {
   const today = todayIso();
   if (p.tanggalSelesai && p.tanggalSelesai < today) return 'selesai';
   if (p.tanggalMulai && p.tanggalMulai <= today) return 'berlangsung';
+  if (isRegistrationDeadlinePassed(p.batasPendaftaran)) return 'ditutup';
   return 'dibuka';
 };
 
 const PHASE_META: Record<Phase, { label: string; cls: string }> = {
   dibuka: { label: 'Pendaftaran Dibuka', cls: 'bg-emerald-600 text-white' },
   berlangsung: { label: 'Sedang Berlangsung', cls: 'bg-blue-600 text-white' },
-  ditutup: { label: 'Pendaftaran Ditutup', cls: 'bg-amber-500 text-white' },
+  ditutup: { label: 'Pendaftaran Berakhir', cls: 'bg-amber-500 text-white' },
   selesai: { label: 'Selesai', cls: 'bg-slate-500 text-white' },
 };
 
@@ -284,7 +287,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
   const wa = buildWaConfirmUrl(program.noWaLembaga || program.mitraPhone, program.namaProgram, registeredName);
   const submitTPQRegistration = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (registering) return;
+    if (registering || registrationClosed) return;
     setRegistrationError(''); setRegistering(true);
     try {
       const response = await fetch(`/api/tpq/${encodeURIComponent(program.id)}/register`, {
@@ -320,7 +323,8 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
   const sisaKuota = Math.max(0, kuotaMax - pendaftar);
   const isFull = kuotaMax > 0 && sisaKuota <= 0;
   const kuotaPercent = kuotaMax > 0 ? Math.min(100, Math.round((pendaftar / kuotaMax) * 100)) : 0;
-  const registrationClosed = phase === 'selesai' || isFull;
+  const isExpired = isRegistrationDeadlinePassed(program.batasPendaftaran);
+  const registrationClosed = phase === 'selesai' || isFull || isExpired;
 
   const breadcrumb = (
     <nav aria-label="Navigasi halaman" className="flex items-center gap-1.5 text-[12px] text-slate-500 flex-wrap">
@@ -374,7 +378,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
 
             {registrationClosed && (
               <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-[13px] text-rose-800">
-                {isFull ? 'Kuota peserta program ini sudah penuh, pendaftaran baru tidak dapat diterima.' : 'Program ini sudah selesai, pendaftaran baru tidak dapat diterima.'}
+                {isFull ? 'Kuota peserta program ini sudah penuh, pendaftaran baru tidak dapat diterima.' : isExpired && phase !== 'selesai' ? 'Batas pendaftaran program ini sudah lewat, pendaftaran baru tidak dapat diterima.' : 'Program ini sudah selesai, pendaftaran baru tidak dapat diterima.'}
               </div>
             )}
 
@@ -559,7 +563,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">Pendaftaran Pendidikan TPQ</h2>
-                  <p className="text-sm text-slate-600 mt-1">{isFull ? 'Kuota peserta program ini sudah penuh, pendaftaran baru tidak dapat diterima.' : phase === 'selesai' ? 'Program ini sudah selesai.' : 'Daftarkan diri Anda melalui formulir pendaftaran. Setelah pendaftaran berhasil, Anda dapat menghubungi penyelenggara melalui tombol WhatsApp.'}</p>
+                  <p className="text-sm text-slate-600 mt-1">{isFull ? 'Kuota peserta program ini sudah penuh, pendaftaran baru tidak dapat diterima.' : phase === 'selesai' ? 'Program ini sudah selesai.' : isExpired ? 'Batas pendaftaran program ini sudah lewat, pendaftaran baru tidak dapat diterima.' : 'Daftarkan diri Anda melalui formulir pendaftaran. Setelah pendaftaran berhasil, Anda dapat menghubungi penyelenggara melalui tombol WhatsApp.'}</p>
                   {kuotaMax > 0 && (
                     <div className="mt-3 max-w-md">
                       <div className="flex justify-between text-[12px] text-slate-600 mb-1.5">
@@ -579,7 +583,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
                   className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13px] font-bold cursor-pointer shrink-0"
                 >
                   <Icon name="edit_square" className="text-[18px]" />
-                  {isFull ? 'Kuota Penuh' : 'Daftar Sekarang'}
+                  {isFull ? 'Kuota Penuh' : isExpired ? 'Pendaftaran Berakhir' : 'Daftar Sekarang'}
                 </button>
               </div>
             </div>

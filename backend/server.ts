@@ -1824,7 +1824,7 @@ app.post('/api/tpq/:id/register', async (req, res) => {
     if (!Array.isArray(rows) || !rows.length) return res.status(404).json({ error: 'Program TPQ tidak ditemukan.' });
     const program = (rows as any[])[0];
     if (program.status !== 'disetujui' || !Boolean(Number(program.izinkan_publikasi))) return res.status(409).json({ error: 'Pendaftaran program ini belum dibuka.' });
-    if (program.batas_pendaftaran && String(program.batas_pendaftaran).slice(0, 10) < new Date().toISOString().slice(0, 10)) return res.status(409).json({ error: 'Batas pendaftaran program ini sudah lewat.' });
+    if (program.batas_pendaftaran && String(program.batas_pendaftaran).slice(0, 10) < new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10)) return res.status(409).json({ error: 'Batas pendaftaran program ini sudah lewat.' });
     const quota = Number(program.kuota_peserta || 0);
     if (quota > 0 && Number(program.jumlah_pendaftar || 0) >= quota) return res.status(409).json({ error: 'Kuota peserta program ini sudah penuh.' });
     const registrationId = `tpqr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -2079,13 +2079,19 @@ app.post('/api/participants', async (req, res) => {
     const pool = await getPool();
     const [eventRows] = await pool.query(
       `SELECT id, proposal_id_string, nama_kegiatan, COALESCE(kuota_disetujui, target_dan_kuota_peserta) AS maxQuota,
-              jumlah_pendaftar, is_aktif, status
+              jumlah_pendaftar, is_aktif, status, batas_pendaftaran
        FROM training_proposals WHERE proposal_id_string=? LIMIT 1`,
       [String(eventId)]
     );
     if (!Array.isArray(eventRows) || !eventRows.length) return res.status(404).json({ error: 'Event pelatihan tidak ditemukan' });
 
     const event = eventRows[0] as any;
+    // Batas pendaftaran (hari terakhir masih buka). Dibandingkan dengan tanggal WIB (UTC+7).
+    const todayWib = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const batasDaftar = dateOnly(event.batas_pendaftaran);
+    if (batasDaftar && batasDaftar < todayWib) {
+      return res.status(409).json({ error: 'Mohon maaf, batas pendaftaran untuk pelatihan ini sudah berakhir.' });
+    }
     const maxQuota = Number(event.maxQuota || 0);
     if (maxQuota > 0 && Number(event.jumlah_pendaftar || 0) >= maxQuota) {
       return res.status(400).json({ error: 'Mohon maaf, kuota pendaftaran untuk pelatihan ini sudah penuh.' });

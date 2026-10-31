@@ -3,6 +3,7 @@ import { Icon } from './Icon.tsx';
 import { TrainingProposal, DisabilityMaster } from '../types.ts';
 import { PartnerLogo } from './PartnerLogo.tsx';
 import { VerifiedBadge } from './VerifiedBadge.tsx';
+import { isRegistrationDeadlinePassed } from '../utils/registrationStatus.ts';
 
 import { getParticipantCategoryOptions } from '../utils/participantCategory.ts';
 function getPersyaratanItems(value: string | null | undefined): { text: string; jenis?: string; wajib?: boolean }[] {
@@ -199,8 +200,8 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                 </div>
 
                 <div className="hidden sm:block text-right">
-                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-300/40">
-                    Pendaftaran Dibuka
+                  <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${isRegistrationDeadlinePassed(event.batasPendaftaran) ? 'bg-slate-200 text-slate-700 border-slate-300/60' : 'bg-emerald-100 text-emerald-800 border-emerald-300/40'}`}>
+                    {isRegistrationDeadlinePassed(event.batasPendaftaran) ? 'Pendaftaran Berakhir' : 'Pendaftaran Dibuka'}
                   </span>
                   <div className="text-[11px] text-slate-500 mt-1">
                     Sisa Kuota: <strong>{sisaKuota}</strong> dari {kuotaMax} peserta
@@ -367,17 +368,18 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                           {formatTanggal(event.batasPendaftaran)}
                         </div>
                       </div>
-                      <span className="px-3 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold tracking-wide">
-                        Buka
+                      <span className={`px-3 py-1 rounded-full text-white text-[11px] font-bold tracking-wide ${isRegistrationDeadlinePassed(event.batasPendaftaran) ? 'bg-slate-500' : 'bg-emerald-600'}`}>
+                        {isRegistrationDeadlinePassed(event.batasPendaftaran) ? 'Berakhir' : 'Buka'}
                       </span>
                     </div>
 
                     {/* Big Action Button: DAFTAR SEKARANG */}
                     <button
                       onClick={() => setActiveStep('form')}
-                      className="w-full py-3.5 px-6 rounded-xl bg-[#0b63e5] hover:bg-[#0952c4] text-white font-extrabold text-[14px] sm:text-[15px] tracking-wide transition-all shadow-md hover:shadow-lg cursor-pointer text-center"
+                      disabled={isRegistrationDeadlinePassed(event.batasPendaftaran)}
+                      className="w-full py-3.5 px-6 rounded-xl bg-[#0b63e5] hover:bg-[#0952c4] text-white font-extrabold text-[14px] sm:text-[15px] tracking-wide transition-all shadow-md hover:shadow-lg cursor-pointer text-center disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      DAFTAR SEKARANG
+                      {isRegistrationDeadlinePassed(event.batasPendaftaran) ? 'PENDAFTARAN BERAKHIR' : 'DAFTAR SEKARANG'}
                     </button>
                     {/* Share Button (Screenshot 2 footer) */}
                     <div className="pt-4 border-t border-slate-100 flex items-center justify-center">

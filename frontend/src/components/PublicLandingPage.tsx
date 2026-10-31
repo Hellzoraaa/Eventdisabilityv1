@@ -6,6 +6,7 @@ import { PetaPersebaran } from './PetaPersebaran.tsx';
 import { PartnerLogo } from './PartnerLogo.tsx';
 import { AnimatedCounter } from './AnimatedCounter.tsx';
 import { VerifiedBadge } from './VerifiedBadge.tsx';
+import { isRegistrationDeadlinePassed } from '../utils/registrationStatus.ts';
 import { EventDetailModal } from './EventDetailModal.tsx';
 import { openEventPage } from './EventDetailPage.tsx';
 import { TpqNavMenu } from './TpqNavMenu.tsx';
@@ -1915,9 +1916,15 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 <div className="flex-1 min-w-0">
                   {/* Status Badge */}
                   <div className="flex items-center gap-2">
-                    <span className="inline-block px-3 py-0.5 rounded-full bg-emerald-600 text-white text-[11px] font-bold tracking-wide">
-                      Buka
-                    </span>
+                    {isRegistrationDeadlinePassed(event.batasPendaftaran) ? (
+                      <span className="inline-block px-3 py-0.5 rounded-full bg-slate-500 text-white text-[11px] font-bold tracking-wide">
+                        Sudah Berakhir
+                      </span>
+                    ) : (
+                      <span className="inline-block px-3 py-0.5 rounded-full bg-emerald-600 text-white text-[11px] font-bold tracking-wide">
+                        Buka
+                      </span>
+                    )}
                   </div>
 
                   {/* Title */}
