@@ -1557,14 +1557,14 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           </h1>
 
           {/* Subtitle */}
-          <p
+          <h2
             className={`text-[14px] sm:text-[16px] max-w-3xl leading-relaxed mb-4 ${appSettings?.headerBgImage && appSettings.headerBgOverlay !== 'light'
               ? 'text-slate-100 drop-shadow-xs font-medium'
               : 'text-slate-600'
               }`}
           >
-           Platform Yang Menghubungkan Peeserta Dengan Penyelenggara Pembelejaran Al'Qur'an Braille Dan Isyarat. Menyediakan Informasi Peltihan, Pendaftaran, Materi Pembelajaran Serta Integrasi Dan Kegiatan.
-          </p>
+           Platform Yang Menghubungkan Peserta Dengan Penyelenggara Pembelejaran Al-Qur'an Braille Dan Isyarat. Menyediakan Informasi Pelatihan, Pendaftaran, Materi Pembelajaran Serta Integrasi Dan Kegiatan.
+          </h2>
         </section>
       </div>
 
@@ -1586,16 +1586,16 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start mb-12">
 
             <div className="lg:col-span-7">
-              <h2 className="text-2xl sm:text-4xl font-extrabold text-[#006316] tracking-tight leading-tight">
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-[#006316] tracking-tight leading-tight">
                 SISTEM INFORMASI LAYANAN 
                 AL-QUR'AN DISABILITAS
-              </h2>
+              </h1>
             </div>
 
             <div className="lg:col-span-5 flex flex-col justify-between h-full">
-              <p className="text-[14px] sm:text-[15px] text-[#006316] leading-relaxed mb-4">
+              <h2 className="text-[14px] sm:text-[15px] text-[#006316] leading-relaxed mb-4">
                 Mendorong Pemetaan Akses Pembelajaran AL-Qur'an Yang Inklusif Melalui Kolaborasi, Integrasi Data, Dan Penguatan Ekosistem Pembelajaran Bagi Semua Kalangan.
-              </p>
+              </h2>
 
               <div className="flex flex-wrap items-center gap-3">
                 <a

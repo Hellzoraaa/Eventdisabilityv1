@@ -491,6 +491,37 @@ app.get('/api/auth/current', async (req, res) => {
   }
 });
 
+// Menyelesaikan link pendek Google Maps (maps.app.goo.gl) menjadi link lengkap agar koordinat bisa dibaca.
+// Hanya host Google yang diizinkan (termasuk pada setiap redirect) untuk mencegah SSRF.
+const GOOGLE_MAPS_HOST = /(^|\.)(google\.[a-z.]+|goo\.gl|g\.co)$/i;
+app.get('/api/maps/resolve', async (req, res) => {
+  try {
+    let current = String(req.query.url || '').trim();
+    if (!current) return res.status(400).json({ error: 'Link Google Maps wajib diisi.' });
+    for (let hop = 0; hop < 6; hop++) {
+      let parsed: URL;
+      try { parsed = new URL(current); } catch { return res.status(400).json({ error: 'Link tidak valid.' }); }
+      if (!/^https?:$/.test(parsed.protocol) || !GOOGLE_MAPS_HOST.test(parsed.hostname)) {
+        return res.status(400).json({ error: 'Hanya link Google Maps yang diperbolehkan.' });
+      }
+      const response = await fetch(parsed.toString(), {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(8000),
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EventForDisabilityBot/1.0)' },
+      });
+      const location = response.headers.get('location');
+      if (response.status >= 300 && response.status < 400 && location) {
+        current = new URL(location, parsed).toString();
+        continue;
+      }
+      return res.json({ url: parsed.toString() });
+    }
+    return res.json({ url: current });
+  } catch {
+    return res.status(502).json({ error: 'Gagal membuka link Google Maps.' });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   try {
     const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';

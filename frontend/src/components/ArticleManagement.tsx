@@ -854,7 +854,7 @@ export const ArticleManagement: React.FC = () => {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[22rem_1fr]">
+      <div className="grid gap-4 grid-cols-1">
         {/* ---------------------------- Daftar artikel ---------------------------- */}
         <section
           aria-labelledby="article-list-heading"
@@ -911,7 +911,7 @@ export const ArticleManagement: React.FC = () => {
                 : 'Tidak ada artikel yang cocok dengan pencarian atau filter.'}
             </p>
           ) : (
-            <ul className="max-h-[32rem] space-y-2 overflow-y-auto pr-1">
+            <ul className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
               {filteredArticles.map((article) => (
                 <li
                   key={article.id}
@@ -1205,14 +1205,14 @@ export const ArticleManagement: React.FC = () => {
               onKeyUp={rememberSelection}
               onMouseUp={rememberSelection}
               style={{ fontFamily: font, fontSize: `${fontSize}px` }}
-              className="min-h-[20rem] max-w-none overflow-auto rounded-md border border-slate-300 bg-white p-4 leading-relaxed text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/30 [&_a]:text-blue-700 [&_a]:underline [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-6 [&_td]:border [&_td]:border-slate-300 [&_ul]:list-disc [&_ul]:pl-6"
+              className="min-h-[32rem] w-full max-w-none overflow-auto rounded-md border border-slate-300 bg-white p-4 leading-relaxed text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/30 [&_a]:text-blue-700 [&_a]:underline [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-6 [&_td]:border [&_td]:border-slate-300 [&_ul]:list-disc [&_ul]:pl-6"
             />
           </div>
 
           {preview && (
             <div>
               <h3 className="mb-1 text-sm font-medium text-slate-800">Pratinjau</h3>
-              <article className="min-h-[20rem] rounded-md border border-slate-200 bg-white p-4">
+              <article className="min-h-[32rem] w-full rounded-md border border-slate-200 bg-white p-4">
                 {coverImage && (
                   <img
                     src={coverImage}

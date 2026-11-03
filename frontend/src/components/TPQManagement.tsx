@@ -8,6 +8,7 @@ import { TPQRegistrations } from './TPQRegistrations.tsx';
 import { SubmissionDetailModal, SubmissionSummary, DetailButton, tpqToItem, type SubmissionItem } from './SubmissionShared.tsx';
 import { JENIS_PESERTA_OPTIONS, getKategoriOptions, findKategori, TPQ_MENU } from './TpqNavMenu.tsx';
 
+import { resolveGoogleMapsLink, coordinatesToMapsLink, MAPS_LINK_ERROR, MAPS_LINK_PLACEHOLDER, MAPS_LINK_HELP } from '../utils/googleMaps.ts';
 interface TPQManagementProps {
   currentUser: User;
   onProgramsUpdated?: (programs: TPQProgram[]) => void;
@@ -55,16 +56,6 @@ const fasilitasOptions = [
 ];
 
 const hariOptions = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-
-const parseCoordinate = (value: string) => {
-  const rawParts = value.split(',').map(v => v.trim());
-  if (rawParts.length !== 2 || rawParts.some(v => v === '')) return null;
-  const parts = rawParts.map(Number);
-  if (parts.some(v => !Number.isFinite(v))) return null;
-  const [latitude, longitude] = parts;
-  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
-  return { latitude, longitude };
-};
 
 const formatDate = (value?: string | null) => {
   if (!value) return '-';
@@ -168,8 +159,8 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
     if (!form.tanggalMulai || !form.tanggalSelesai) { setError('Tanggal mulai dan tanggal berakhir wajib diisi.'); return; }
     if (form.tanggalSelesai < form.tanggalMulai) { setError('Tanggal berakhir tidak boleh sebelum tanggal mulai.'); return; }
     if (!form.hariPertemuan.length) update('hariPertemuan', ['Senin']);
-    const coordinates = form.koordinat.trim() ? parseCoordinate(form.koordinat) : { latitude: 0, longitude: 0 };
-    if (!coordinates) { setError('Koordinat harus ditulis dengan format Latitude, Longitude. Contoh: -6.9175, 107.6191'); return; }
+    const coordinates = form.koordinat.trim() ? await resolveGoogleMapsLink(form.koordinat) : { latitude: 0, longitude: 0 };
+    if (!coordinates) { setError(MAPS_LINK_ERROR); return; }
 
     setIsSubmitting(true);
     try {
@@ -284,7 +275,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
       provinsi: program.provinsi,
       kota: program.kota,
       lokasiDanAlamat: program.lokasiDanAlamat,
-      koordinat: `${program.latitude}, ${program.longitude}`,
+      koordinat: coordinatesToMapsLink(program.latitude, program.longitude),
       noWaLembaga: program.noWaLembaga || program.mitraPhone || '',
     });
     try {
@@ -391,7 +382,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
               onProvinceChange={(value) => setForm(previous => ({ ...previous, provinsi: value, kota: '' }))}
               onCityChange={(value) => setForm(previous => ({ ...previous, kota: value }))}
             />
-            <div className="request-field request-full"><label>Koordinat</label><input value={form.koordinat} onChange={e=>update('koordinat',e.target.value)} placeholder="-6.200000, 106.816666" /></div>
+            <div className="request-field request-full"><label>Link Google Maps</label><input type="url" inputMode="url" value={form.koordinat} onChange={e=>update('koordinat',e.target.value)} placeholder={MAPS_LINK_PLACEHOLDER} /><p className="text-[11px] text-slate-500 mt-1">{MAPS_LINK_HELP}</p></div>
             <PersyaratanPicker
               value={persyaratanPendidikan}
               onChange={setPersyaratanPendidikan}

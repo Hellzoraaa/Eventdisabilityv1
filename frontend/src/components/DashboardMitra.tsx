@@ -13,16 +13,7 @@ import {
 import { PartnerLogo } from './PartnerLogo.tsx';
 import { VerifiedBadge } from './VerifiedBadge.tsx';
 import { IndonesiaLocationFields } from './IndonesiaLocationFields.tsx';
-
-const parseEventCoordinate = (value: string) => {
-  const rawParts = value.split(',').map(part => part.trim());
-  if (rawParts.length !== 2 || rawParts.some(part => part === '')) return null;
-  const parts = rawParts.map(Number);
-  if (parts.some(part => !Number.isFinite(part))) return null;
-  const [latitude, longitude] = parts;
-  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
-  return { latitude, longitude };
-};
+import { resolveGoogleMapsLink, coordinatesToMapsLink, MAPS_LINK_ERROR, MAPS_LINK_PLACEHOLDER, MAPS_LINK_HELP } from '../utils/googleMaps.ts';
 
 interface DashboardMitraProps {
   currentUser: User;
@@ -242,7 +233,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
   const [fotoEventError, setFotoEventError] = useState('');
   const [provinsi, setProvinsi] = useState(currentUser.province || 'Jawa Barat');
   const [kota, setKota] = useState(currentUser.city || 'Kota Bandung');
-  const [koordinat, setKoordinat] = useState('-6.9175, 107.6191');
+  const [koordinat, setKoordinat] = useState('');
   const [tanggalKegiatan, setTanggalKegiatan] = useState('');
   const [tanggalBerakhirKegiatan, setTanggalBerakhirKegiatan] = useState('');
   const [jamMulaiEvent, setJamMulaiEvent] = useState('09:00');
@@ -278,7 +269,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
     setFotoEventError('');
     setProvinsi(proposal.provinsi);
     setKota(proposal.kota);
-    setKoordinat(`${proposal.latitude}, ${proposal.longitude}`);
+    setKoordinat(coordinatesToMapsLink(proposal.latitude, proposal.longitude));
     const legacySchedule = String(proposal.tanggalKegiatan || '').match(/^(\d{4}-\d{2}-\d{2})\s*\((\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\)$/);
     setTanggalKegiatan(legacySchedule ? legacySchedule[1] : proposal.tanggalKegiatan);
     setTanggalBerakhirKegiatan((proposal as any).tanggalBerakhirKegiatan || '');
@@ -303,7 +294,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
     setDeskripsiPelatihan('');
     setFotoDokumentasiEvent([]);
     setFotoEventError('');
-    setKoordinat('-6.9175, 107.6191');
+    setKoordinat('');
     setTanggalKegiatan('');
     setTanggalBerakhirKegiatan('');
     setJamMulaiEvent('09:00');
@@ -372,8 +363,8 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
     if (tanggalAkhirDihitung && tanggalAkhirDihitung !== tanggalKegiatan && (tanggalBerakhirKegiatan && tanggalBerakhirKegiatan !== tanggalAkhirDihitung)) { alert(`Tanggal berakhir harus ${tanggalAkhirDihitung} sesuai durasi ${durasiJumlah} ${durasiSatuan}.`); return; }
     if (!alamatEvent.trim()) { alert('Alamat lengkap wajib diisi.'); return; }
     if (batasPendaftaranEvent && tanggalKegiatan && batasPendaftaranEvent > tanggalKegiatan) { alert('Batas pendaftaran tidak boleh melewati tanggal kegiatan.'); return; }
-    const coordinates = koordinat.trim() ? parseEventCoordinate(koordinat) : { latitude: 0, longitude: 0 };
-    if (!coordinates) { alert('Koordinat harus ditulis dengan format Latitude, Longitude. Contoh: -6.9175, 107.6191'); return; }
+    const coordinates = koordinat.trim() ? await resolveGoogleMapsLink(koordinat) : { latitude: 0, longitude: 0 };
+    if (!coordinates) { alert(MAPS_LINK_ERROR); return; }
 
     setIsSubmitting(true);
 
@@ -859,7 +850,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                 onCityChange={setKota}
                 variant="mitra"
               />
-              <div className="request-field request-full"><label>Koordinat</label><input value={koordinat} onChange={e=>setKoordinat(e.target.value)} placeholder="-6.200000, 106.816666" /></div>
+              <div className="request-field request-full"><label>Link Google Maps</label><input type="url" inputMode="url" value={koordinat} onChange={e=>setKoordinat(e.target.value)} placeholder={MAPS_LINK_PLACEHOLDER} /><p className="text-[11px] text-slate-500 mt-1">{MAPS_LINK_HELP}</p></div>
               <PersyaratanPicker
                 value={persyaratanEvent}
                 onChange={setPersyaratanEvent}
