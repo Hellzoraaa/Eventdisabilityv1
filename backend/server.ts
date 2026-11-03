@@ -493,6 +493,28 @@ app.get('/api/auth/current', async (req, res) => {
 
 // Menyelesaikan link pendek Google Maps (maps.app.goo.gl) menjadi link lengkap agar koordinat bisa dibaca.
 // Hanya host Google yang diizinkan (termasuk pada setiap redirect) untuk mencegah SSRF.
+function findMapsCoordinates(raw: string): { latitude: number; longitude: number } | null {
+  let text = raw;
+  try { text = decodeURIComponent(decodeURIComponent(raw)); } catch { try { text = decodeURIComponent(raw); } catch { /* biarkan */ } }
+  text = text.replace(/\\u003d/g, '=').replace(/\\u0026/g, '&');
+  const num = '(-?\\d{1,3}\\.\\d+)';
+  const patterns = [
+    new RegExp(`!3d${num}!4d${num}`),
+    new RegExp(`@${num},${num}`),
+    new RegExp(`center=${num},${num}`),
+    new RegExp(`[?&](?:q|query|ll|destination)=${num},${num}`),
+    new RegExp(`\\[null,null,${num},${num}\\]`),
+  ];
+  for (const pattern of patterns) {
+    const m = text.match(pattern);
+    if (!m) continue;
+    const latitude = Number(m[1]);
+    const longitude = Number(m[2]);
+    if (latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180) return { latitude, longitude };
+  }
+  return null;
+}
+
 const GOOGLE_MAPS_HOST = /(^|\.)(google\.[a-z.]+|goo\.gl|g\.co)$/i;
 app.get('/api/maps/resolve', async (req, res) => {
   try {
@@ -514,7 +536,13 @@ app.get('/api/maps/resolve', async (req, res) => {
         current = new URL(location, parsed).toString();
         continue;
       }
-      return res.json({ url: parsed.toString() });
+      const finalUrl = parsed.toString();
+      // Cadangan: bila URL akhir tidak memuat koordinat, cari koordinat di isi halaman.
+      const fromUrl = findMapsCoordinates(finalUrl);
+      if (fromUrl) return res.json({ url: finalUrl, ...fromUrl });
+      const html = (await response.text()).slice(0, 2_000_000);
+      const fromHtml = findMapsCoordinates(html);
+      return res.json({ url: finalUrl, ...(fromHtml || {}) });
     }
     return res.json({ url: current });
   } catch {

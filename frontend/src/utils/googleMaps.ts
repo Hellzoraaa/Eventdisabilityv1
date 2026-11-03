@@ -82,6 +82,9 @@ export const resolveGoogleMapsLink = async (input: string): Promise<MapsCoordina
     const res = await fetch(`/api/maps/resolve?url=${encodeURIComponent(url.toString())}`);
     if (!res.ok) return null;
     const data = await res.json();
+    if (typeof data?.latitude === 'number' && typeof data?.longitude === 'number') {
+      return pair(String(data.latitude), String(data.longitude));
+    }
     return typeof data?.url === 'string' ? extractCoordinatesFromText(data.url) : null;
   } catch {
     return null;
