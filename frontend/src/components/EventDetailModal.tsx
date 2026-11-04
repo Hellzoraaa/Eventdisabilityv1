@@ -234,7 +234,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                         {event.namaKegiatan}
                       </h2>
                       <p className="text-[13px] text-cyan-100 font-medium mb-4 leading-relaxed">
-                        Diselenggarakan oleh Yayasan Tunanetra Indonesia Untuk Seluruh Masyarakat Indonesia.
+                        Diselenggarakan oleh Yayasan Tuli Indonesia Untuk Seluruh Masyarakat Indonesia.
                       </p>
                     </div>
 
@@ -335,7 +335,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
 
                     {activeTab === 'syarat' && (
                       <ul className="space-y-2.5 list-disc pl-5 text-slate-700">
-                        <li>Penyandang disabilitas (Tunanetra, Tunarungu, Tunadaksa, Autisme) atau pendamping keluarga.</li>
+                        <li>Penyandang disabilitas (Tuli, Tunarungu, Tunadaksa, Autisme) atau pendamping keluarga.</li>
                         <li>Memiliki tekad dan komitmen kuat untuk belajar membaca Al-Quran.</li>
                         <li>Berusia minimal 7 tahun ke atas.</li>
                         <li>Mengisi formulir pendaftaran dengan nomor WhatsApp aktif yang dapat dihubungi.</li>

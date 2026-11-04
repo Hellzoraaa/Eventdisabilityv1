@@ -182,7 +182,7 @@ export const PartnerLogo: React.FC<PartnerLogoProps> = ({
               MENGAJI BRAILLE
             </text>
             <text x="54" y="46" fill="#9CA3AF" fontFamily="'Segoe UI', sans-serif" fontWeight="600" fontSize="7">
-              PUSAT QURAN TUNANETRA
+              PUSAT QURAN TULI
             </text>
           </svg>
         </div>

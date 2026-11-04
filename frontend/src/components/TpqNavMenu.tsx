@@ -5,7 +5,7 @@ import { Icon } from './Icon.tsx';
  * Menu navbar "Pendidikan" dengan dropdown bertingkat:
  *
  *   Program TPQ
- *   ├─ Tunanetra  ─────────────► Program Al-Qur’an Braille
+ *   ├─ Tuli  ─────────────► Program Al-Qur’an Braille
  *   └─ Tunarungu  ▸ (submenu)
  *        ├─ Program Al-Qur’an Isyarat Metode Kitabah
  *        ├─ Program Al-Qur’an Isyarat Metode Tilawah
@@ -35,7 +35,7 @@ export interface TpqMenuGroup {
 
 export const TPQ_MENU: TpqMenuGroup[] = [
   {
-    label: 'Tunanetra',
+    label: 'Tuli',
     icon: 'visibility',
     select: { label: 'Program Al-Qur’an Braille', jenis: 'braille' },
   },
@@ -56,7 +56,7 @@ export const TPQ_MENU: TpqMenuGroup[] = [
  * mengubah isi form.
  * ------------------------------------------------------------------------- */
 
-export const JENIS_PESERTA_GABUNGAN = 'Tunanetra Dan Tunarungu';
+export const JENIS_PESERTA_GABUNGAN = 'Tuli Dan Tunarungu';
 
 /** Pilihan "Jenis Peserta": tiap grup menu + gabungan keduanya. */
 export const JENIS_PESERTA_OPTIONS: string[] = [
@@ -84,7 +84,7 @@ export const findKategori = (value: string): TpqSelection | undefined => {
 
 interface Props {
   variant?: 'desktop' | 'mobile';
-  /** Dipanggil saat sebuah jenis peserta diklik: 'Tunanetra', 'Tunarungu', atau 'Tunanetra Dan Tunarungu'. */
+  /** Dipanggil saat sebuah jenis peserta diklik: 'Tuli', 'Tunarungu', atau 'Tuli Dan Tunarungu'. */
   onSelect: (jenisPeserta: string) => void;
   /** Dipanggil setelah item dipilih (mis. untuk menutup menu mobile). */
   onNavigate?: () => void;
@@ -152,7 +152,7 @@ export const TpqNavMenu: React.FC<Props> = ({
                 onClick={() => choose(opt)}
                 className="flex items-center gap-2 text-left px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors"
               >
-                {opt === JENIS_PESERTA_GABUNGAN ? 'Tunanetra dan Tunarungu' : opt}
+                {opt === JENIS_PESERTA_GABUNGAN ? 'Tuli dan Tunarungu' : opt}
               </button>
             ))}
           </div>
@@ -189,7 +189,7 @@ export const TpqNavMenu: React.FC<Props> = ({
               onClick={() => choose(opt)}
               className="flex w-full items-center gap-2.5 text-left px-3 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
             >
-              {opt === JENIS_PESERTA_GABUNGAN ? 'Tunanetra dan Tunarungu' : opt}
+              {opt === JENIS_PESERTA_GABUNGAN ? 'Tuli dan Tunarungu' : opt}
             </button>
           ))}
         </div>

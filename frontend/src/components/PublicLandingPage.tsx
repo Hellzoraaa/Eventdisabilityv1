@@ -348,7 +348,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
   // Map Filter state
   const [mapSearch, setMapSearch] = useState('');
-  const [mapCategory, setMapCategory] = useState<'all' | 'tunanetra' | 'tunarungu' | 'tunadaksa' | 'intelektual'>('all');
+  const [mapCategory, setMapCategory] = useState<'all' | 'tuli' | 'tunarungu' | 'tunadaksa' | 'intelektual'>('all');
 
   // Enhanced Contact Form State
   const [contactName, setContactName] = useState('');
@@ -432,7 +432,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   const [regWa, setRegWa] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regAge, setRegAge] = useState('');
-  const [regDisability, setRegDisability] = useState<string>('tunanetra');
+  const [regDisability, setRegDisability] = useState<string>('tuli');
   const [regFacilities, setRegFacilities] = useState<string[]>([]);
   const [regNotes, setRegNotes] = useState('');
   const [isSubmittingReg, setIsSubmittingReg] = useState(false);
@@ -492,7 +492,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     window.location.hash = `#test/${tipe}`;
   };
 
-  // Filter Program TPQ dari menu navbar (Tunanetra / Tunarungu / Tunanetra Dan Tunarungu)
+  // Filter Program TPQ dari menu navbar (Tuli / Tunarungu / Tuli Dan Tunarungu)
   const [tpqPesertaRequest, setTpqPesertaRequest] = useState<{ label: string; n: number } | null>(null);
   const handleTpqSelect = (jenisPeserta: string) => {
     setTpqPesertaRequest(prev => ({ label: jenisPeserta, n: (prev?.n ?? 0) + 1 }));

@@ -99,7 +99,7 @@ import { getParticipantCategoryOptions } from '../utils/participantCategory.ts';
 
 const FALLBACK_DISABILITY_OPTIONS = [
   { value: 'umum', label: 'Umum / Non-Disabilitas (Masyarakat, Relawan, Guru)' },
-  { value: 'tunanetra', label: 'Tunanetra (Braille / Audio)' },
+  { value: 'tuli', label: 'Tuli (Braille / Audio)' },
   { value: 'tunarungu', label: 'Tunarungu (Bahasa Isyarat)' },
   { value: 'tunadaksa', label: 'Tunadaksa (Akses Kursi Roda)' },
   { value: 'intelektual_autisme', label: 'Intelektual / Autisme' },
@@ -622,7 +622,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
                 <div className="max-w-md">
                   <span className="inline-block px-3 py-0.5 rounded-md bg-white/20 text-white text-[11px] font-bold tracking-wider uppercase mb-2">Pelatihan</span>
                   <h2 className="text-xl sm:text-2xl font-black leading-tight tracking-tight uppercase text-white mb-2">{event.namaKegiatan}</h2>
-                  <p className="text-[13px] text-white font-medium mb-4 leading-relaxed">Diselenggarakan oleh Yayasan Tunanetra Indonesia Untuk Seluruh Masyarakat Indonesia.</p>
+                  <p className="text-[13px] text-white font-medium mb-4 leading-relaxed">Diselenggarakan oleh Yayasan Tuli Indonesia Untuk Seluruh Masyarakat Indonesia.</p>
                 </div>
               </div>
             </div>

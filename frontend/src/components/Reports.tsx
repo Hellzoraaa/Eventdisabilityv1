@@ -131,7 +131,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
   // Real Disability & General Category Calculation
 
-  const countNetra = participantsList.filter(p => p.kategoriDisabilitas === 'tunanetra').length;
+  const countNetra = participantsList.filter(p => p.kategoriDisabilitas === 'tuli').length;
 
   const countRungu = participantsList.filter(p => p.kategoriDisabilitas === 'tunarungu').length;
 
@@ -235,7 +235,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
       csv += 'Kategori Peserta,Jumlah Peserta,Persentase Real,Fasilitas Pendukung\n';
 
-      csv += `Tunanetra (Braille),${countNetra},${pctNetra}%,Mushaf Quran Braille & Relawan Pendamping\n`;
+      csv += `Tuli (Braille),${countNetra},${pctNetra}%,Mushaf Quran Braille & Relawan Pendamping\n`;
 
       csv += `Tunarungu (Isyarat),${countRungu},${pctRungu}%,Juru Bahasa Isyarat (JBI) & Video Visual\n`;
 
@@ -359,7 +359,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
         const key = String(value || '').toLowerCase();
 
-        if (key === 'tunanetra') return 'Tunanetra (Braille)';
+        if (key === 'tuli') return 'Tuli (Braille)';
 
         if (key === 'tunarungu') return 'Tunarungu / Tuli (Isyarat)';
 
@@ -375,7 +375,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
       const countCategory = (keys: string[]) => participantsList.filter(p => keys.includes(String(p.kategoriDisabilitas || '').toLowerCase())).length;
 
-      const countNetraPdf = countCategory(['tunanetra']);
+      const countNetraPdf = countCategory(['tuli']);
 
       const countRunguPdf = countCategory(['tunarungu']);
 
@@ -549,7 +549,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
       const categoryRows: (string | number)[][] = [
 
-        ['Tunanetra (Braille)', countNetraPdf, percent(countNetraPdf), 'Mushaf Quran Braille LPMQ'],
+        ['Tuli (Braille)', countNetraPdf, percent(countNetraPdf), 'Mushaf Quran Braille LPMQ'],
 
         ['Tunarungu / Tuli (Isyarat)', countRunguPdf, percent(countRunguPdf), 'Mushaf Al-Qur’an Isyarat'],
 
@@ -1099,7 +1099,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
             <div className="space-y-4">
 
-              {/* Tunanetra */}
+              {/* Tuli */}
 
               <div>
 
@@ -1109,7 +1109,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
                     <span className="w-2.5 h-2.5 rounded-full bg-[#005a71]"></span>
 
-                    Tunanetra
+                    Tuli
 
                   </span>
 

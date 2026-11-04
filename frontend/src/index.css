@@ -75,3 +75,17 @@ code, kbd, samp, pre, .font-mono {
 .article-published-html td, .article-published-html th { border: 1px solid #94a3b8; padding: 8px 10px; vertical-align: top; }
 .article-published-html th { background: #f1f5f9; font-weight: 700; }
 .article-excerpt { font-size: 1.15em; line-height: 1.7; color: #475569; font-weight: 500; }
+
+/* ---- Teks soal (Bank Soal & halaman test): editor + tampilan ---- */
+/* Aturan global `*` memberi Lato pada SEMUA elemen, termasuk <b>/<i> di dalam <span style="font-family">.
+   `inherit` di sini membuat font pilihan editor ikut ke elemen turunannya; inline style tetap menang. */
+.rich-content { overflow-wrap: anywhere; line-height: 1.6; }
+.rich-content *, .rich-content *::before, .rich-content *::after { font-family: inherit; }
+.rich-content p, .rich-content div { margin: 0; }
+.rich-content b, .rich-content strong { font-weight: 700; }
+.rich-content i, .rich-content em { font-style: italic; }
+.rich-content u { text-decoration: underline; }
+.rich-content sub { vertical-align: sub; font-size: smaller; }
+.rich-content sup { vertical-align: super; font-size: smaller; }
+.rich-content ul { list-style: disc; margin: 0.25em 0; padding-left: 1.4em; }
+.rich-content ol { list-style: decimal; margin: 0.25em 0; padding-left: 1.4em; }

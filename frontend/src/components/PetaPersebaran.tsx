@@ -96,7 +96,7 @@ export function getEventDisabilityCategory(
 
     // Synonyms and special terms mapping
     if (kodeLower.includes('netra') || namaLower.includes('netra')) {
-      keywords.push('braille', 'low vision', 'blind', 'tunanetra');
+      keywords.push('braille', 'low vision', 'blind', 'tuli');
     }
     if (kodeLower.includes('rungu') || namaLower.includes('rungu') || namaLower.includes('tuli')) {
       keywords.push('tuli', 'isyarat', 'bisindo', 'sibi', 'deaf', 'tunarungu', 'bisu');

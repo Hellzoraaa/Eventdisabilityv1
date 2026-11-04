@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from './Icon.tsx';
 import { goHome, leaveEventPage } from './EventDetailPage.tsx';
+import { RichContent } from './RichContent.tsx';
 
 // ---------------------------------------------------------------------------
 // Halaman Test peserta, dibuka dari menu Pendidikan > Test.
@@ -222,7 +223,7 @@ export const TestPage: React.FC<Props> = ({ tipe, appSettings }) => {
             {soal.map((s, idx) => (
               <fieldset key={s.id} className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
                 <legend className="sr-only">Soal {idx + 1}</legend>
-                <p className="text-[14px] font-semibold text-slate-900 whitespace-pre-wrap"><span className="text-emerald-700 mr-1">{idx + 1}.</span>{s.pertanyaan}</p>
+                <div className="flex gap-1.5 text-[14px] font-semibold text-slate-900"><span className="text-emerald-700 shrink-0">{idx + 1}.</span><RichContent html={s.pertanyaan} className="min-w-0 flex-1" /></div>
                 <div className="mt-3 space-y-2">
                   {s.pilihan.map((p, i) => {
                     const huruf = HURUF[i];
@@ -230,7 +231,7 @@ export const TestPage: React.FC<Props> = ({ tipe, appSettings }) => {
                     return (
                       <label key={huruf} className={`flex items-start gap-3 rounded-xl border px-3.5 py-2.5 text-[13px] cursor-pointer transition-colors ${checked ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50'}`}>
                         <input type="radio" name={`soal-${s.id}`} checked={checked} onChange={() => setAnswers(prev => ({ ...prev, [s.id]: huruf }))} className="mt-0.5 accent-emerald-700" />
-                        <span><span className="font-bold mr-1.5">{huruf}.</span>{p}</span>
+                        <span className="flex gap-1.5 min-w-0"><span className="font-bold shrink-0">{huruf}.</span><RichContent html={p} className="min-w-0" /></span>
                       </label>
                     );
                   })}

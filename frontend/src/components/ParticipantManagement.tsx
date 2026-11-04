@@ -42,7 +42,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
     noWa: '',
     email: '',
     usia: 25,
-    kategoriDisabilitas: 'tunanetra' as Participant['kategoriDisabilitas'],
+    kategoriDisabilitas: 'tuli' as Participant['kategoriDisabilitas'],
     statusKehadiran: 'terdaftar' as Participant['statusKehadiran'],
     kebutuhanFasilitas: [] as string[],
     catatanKhusus: '',
@@ -60,7 +60,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
     noWa: '',
     email: '',
     usia: 25,
-    kategoriDisabilitas: 'tunanetra' as Participant['kategoriDisabilitas'],
+    kategoriDisabilitas: 'tuli' as Participant['kategoriDisabilitas'],
     statusKehadiran: 'terdaftar' as Participant['statusKehadiran'],
     kebutuhanFasilitas: [] as string[],
     catatanKhusus: '',
@@ -221,7 +221,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
           noWa: '',
           email: '',
           usia: 25,
-          kategoriDisabilitas: 'tunanetra',
+          kategoriDisabilitas: 'tuli',
           statusKehadiran: 'terdaftar',
           kebutuhanFasilitas: [],
           catatanKhusus: '',
@@ -437,7 +437,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
               ) : (
                 <>
                   <option value="umum">Umum / Non-Disabilitas</option>
-                  <option value="tunanetra">Tunanetra (Braille)</option>
+                  <option value="tuli">Tuli (Braille)</option>
                   <option value="tunarungu">Tunarungu / Tuli (Isyarat)</option>
                   <option value="tunadaksa">Tunadaksa (Fisik)</option>
                   <option value="intelektual_autisme">Intelektual & Autisme</option>
@@ -514,7 +514,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                     </td>
                     <td className="py-3 px-4">
                       <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${
-                        p.kategoriDisabilitas === 'tunanetra'
+                        p.kategoriDisabilitas === 'tuli'
                           ? 'bg-[#005a71]/10 text-[#005a71]'
                           : p.kategoriDisabilitas === 'tunarungu'
                           ? 'bg-[#fc6f5a]/15 text-[#b93822]'
@@ -674,7 +674,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                       ))
                     ) : (
                       <>
-                        <option value="tunanetra">Tunanetra (Braille)</option>
+                        <option value="tuli">Tuli (Braille)</option>
                         <option value="tunarungu">Tunarungu (Isyarat)</option>
                         <option value="tunadaksa">Tunadaksa</option>
                         <option value="intelektual_autisme">Intelektual & Autisme</option>
@@ -824,7 +824,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                       ))
                     ) : (
                       <>
-                        <option value="tunanetra">Tunanetra (Braille)</option>
+                        <option value="tuli">Tuli (Braille)</option>
                         <option value="tunarungu">Tunarungu (Isyarat)</option>
                         <option value="tunadaksa">Tunadaksa</option>
                         <option value="intelektual_autisme">Intelektual & Autisme</option>

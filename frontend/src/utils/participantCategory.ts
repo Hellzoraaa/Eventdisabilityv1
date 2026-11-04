@@ -1,7 +1,7 @@
 /**
  * Pilihan "Kategori Peserta" pada formulir pendaftaran mengikuti kategori event/program:
  *  - 1 kategori (mis. Umum)                  -> hanya 1 pilihan (Umum)
- *  - 2 kategori (mis. Tunanetra + Tunarungu) -> 3 pilihan: Tunanetra, Tunarungu, Tunanetra dan Tunarungu
+ *  - 2 kategori (mis. Tuli + Tunarungu) -> 3 pilihan: Tuli, Tunarungu, Tuli dan Tunarungu
  */
 export interface ParticipantCategoryOption {
   value: string;
@@ -30,8 +30,8 @@ export const formatParticipantCategory = (value: string, masters: MasterLike[] =
 };
 
 /**
- * @param categoryLabel teks kategori event, mis. "Tunanetra", "Umum / Non-Disabilitas",
- *                      "Tunanetra dan Tunarungu" atau "Tunanetra, Tunarungu"
+ * @param categoryLabel teks kategori event, mis. "Tuli", "Umum / Non-Disabilitas",
+ *                      "Tuli dan Tunarungu" atau "Tuli, Tunarungu"
  * @param masters       master jenis disabilitas (hanya yang aktif dipakai)
  */
 export function getParticipantCategoryOptions(

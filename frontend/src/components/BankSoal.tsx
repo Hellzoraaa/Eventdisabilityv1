@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon.tsx';
+import { RichEditorProvider, RichField, RichToolbar } from './RichTextEditor.tsx';
+import { RichContent } from './RichContent.tsx';
 import { TrainingProposal, User } from '../types.ts';
-import { SOAL_TEMPLATE_CSV, MAX_IMPORT_ROWS, parseSoalImport, soalKey } from '../utils/SoalImport.ts';
+import { isRichEmpty } from '../utils/richText.ts';
 
 interface Soal {
   id: string;
@@ -17,6 +19,11 @@ interface Props {
   events: TrainingProposal[];
 }
 
+/** Satu soal di dalam form. Beberapa soal dalam satu form disimpan sekaligus sebagai satu kelompok (event dan jenis sama). */
+interface Draft { key: string; pertanyaan: string; pilihan: string[]; jawabanBenar: string }
+const MAX_DRAFTS = 50;
+const newDraft = (): Draft => ({ key: `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, pertanyaan: '', pilihan: ['', '', '', ''], jawabanBenar: 'A' });
+
 const TIPE_LABEL: Record<Soal['tipe'], string> = { pretest: 'Pretest', postest: 'Postest', latihan: 'Latihan' };
 const HURUF = ['A', 'B', 'C', 'D', 'E'];
 
@@ -31,17 +38,9 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
 
   const [eventId, setEventId] = useState('');
   const [tipe, setTipe] = useState<Soal['tipe']>('pretest');
-  const [pertanyaan, setPertanyaan] = useState('');
-  const [pilihan, setPilihan] = useState<string[]>(['', '', '', '']);
-  const [jawabanBenar, setJawabanBenar] = useState('A');
-
-  // ---- Impor soal dari file CSV / tempel dari Excel ----
-  const [showImport, setShowImport] = useState(false);
-  const [importText, setImportText] = useState('');
-  const [importFileName, setImportFileName] = useState('');
-  const [importEventId, setImportEventId] = useState('');
-  const [importTipe, setImportTipe] = useState<Soal['tipe']>('pretest');
-  const [importing, setImporting] = useState(false);
+  // Pertanyaan dan pilihan disimpan sebagai HTML hasil editor teks.
+  const [drafts, setDrafts] = useState<Draft[]>(() => [newDraft()]);
+  const focusKey = useRef<string | null>(null);
 
   const myEvents = events.filter(e => currentUser.role === 'superadmin' || String(e.mitraId) === String(currentUser.id));
 
@@ -57,82 +56,69 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  const existingKeys = useMemo(
-    () => new Set(soal.map(s => soalKey(s.eventId, s.tipe, s.pertanyaan))),
-    [soal],
-  );
-  const importResult = useMemo(
-    () => parseSoalImport(importText, { defaultTipe: importTipe, eventId: importEventId, existingKeys }),
-    [importText, importTipe, importEventId, existingKeys],
-  );
-  const importValid = importResult.rows.filter(r => !r.error && !r.duplicate);
-  const importInvalid = importResult.rows.filter(r => r.error);
-  const importDuplicate = importResult.rows.filter(r => !r.error && r.duplicate);
+  const reset = () => setDrafts([newDraft()]);
 
-  const closeImport = () => {
-    setShowImport(false); setImportText(''); setImportFileName('');
-    setImportEventId(''); setImportTipe('pretest');
+  const patchDraft = (key: string, fn: (d: Draft) => Draft) => setDrafts(prev => prev.map(d => d.key === key ? fn(d) : d));
+
+  const addDraft = () => {
+    if (drafts.length >= MAX_DRAFTS) { setError(`Maksimal ${MAX_DRAFTS} soal sekali simpan.`); return; }
+    const d = newDraft();
+    focusKey.current = d.key;
+    setError('');
+    setDrafts(prev => [...prev, d]);
   };
 
-  const downloadTemplate = () => {
-    const blob = new Blob([SOAL_TEMPLATE_CSV], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'template-impor-bank-soal.csv';
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
+  const removeDraft = (key: string) => {
+    const d = drafts.find(x => x.key === key);
+    const hasContent = d && (!isRichEmpty(d.pertanyaan) || d.pilihan.some(p => !isRichEmpty(p)));
+    if (hasContent && !window.confirm('Hapus soal ini dari form?')) return;
+    setDrafts(prev => prev.length > 1 ? prev.filter(x => x.key !== key) : prev);
   };
 
-  const handleImportFile = async (file: File | undefined | null) => {
-    if (!file) return;
-    setError(''); setNotice('');
-    if (/\.(xlsx|xlsm|xls)$/i.test(file.name)) {
-      setError('File Excel (.xlsx/.xls) belum dapat dibaca langsung. Simpan sebagai CSV (File → Save As → CSV), atau salin sel dari Excel lalu tempel pada kolom teks di bawah.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) { setError('Ukuran file maksimal 5 MB.'); return; }
-    try {
-      const buffer = await file.arrayBuffer();
-      let text = new TextDecoder('utf-8').decode(buffer);
-      if (text.includes('\uFFFD')) text = new TextDecoder('windows-1252').decode(buffer);
-      setImportText(text);
-      setImportFileName(file.name);
-    } catch { setError('File tidak dapat dibaca. Coba simpan ulang sebagai CSV.'); }
-  };
+  // Soal yang baru ditambahkan langsung diberi fokus pada kolom pertanyaannya.
+  useEffect(() => {
+    const key = focusKey.current;
+    if (!key) return;
+    focusKey.current = null;
+    const el = document.getElementById(`soal-${key}-pertanyaan`);
+    el?.focus();
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [drafts]);
 
-  const submitImport = async () => {
-    if (importValid.length === 0) return;
-    setImporting(true); setError(''); setNotice('');
-    try {
-      const res = await fetch('/api/bank-soal/import', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventId: importEventId || null,
-          items: importValid.map(r => ({ pertanyaan: r.pertanyaan, pilihan: r.pilihan, jawabanBenar: r.jawabanBenar, tipe: r.tipe })),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Gagal mengimpor soal.');
-      const skipped = Number(data.skipped) || 0;
-      setNotice(`${data.inserted} soal berhasil diimpor${skipped ? `, ${skipped} dilewati karena sudah ada` : ''}.`);
-      closeImport(); await load();
-    } catch (err) { setError(err instanceof Error ? err.message : 'Gagal mengimpor soal.'); }
-    finally { setImporting(false); }
+  // Validasi di browser (server memvalidasi ulang). Mengembalikan pesan error atau null.
+  const validateDraft = (d: Draft): string | null => {
+    if (isRichEmpty(d.pertanyaan)) return 'Pertanyaan wajib diisi.';
+    const filled = d.pilihan.map(p => !isRichEmpty(p));
+    const lastFilled = filled.lastIndexOf(true);
+    if (filled.filter(Boolean).length < 2) return 'Isi minimal 2 pilihan jawaban.';
+    if (filled.slice(0, lastFilled + 1).some(f => !f)) return 'Isi pilihan jawaban secara berurutan (A, B, C, D) tanpa melewatkan satu pun.';
+    if (HURUF.indexOf(d.jawabanBenar) > lastFilled) return 'Jawaban benar harus salah satu pilihan yang terisi.';
+    return null;
   };
-
-  const reset = () => { setPertanyaan(''); setPilihan(['', '', '', '']); setJawabanBenar('A'); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true); setError(''); setNotice('');
+    setError(''); setNotice('');
+
+    for (let i = 0; i < drafts.length; i++) {
+      const problem = validateDraft(drafts[i]);
+      if (problem) { setError(drafts.length > 1 ? `Soal ${i + 1}: ${problem}` : problem); return; }
+    }
+
+    setSaving(true);
     try {
+      const items = drafts.map(d => {
+        const lastFilled = d.pilihan.map(p => !isRichEmpty(p)).lastIndexOf(true);
+        return { pertanyaan: d.pertanyaan, pilihan: d.pilihan.slice(0, lastFilled + 1), jawabanBenar: d.jawabanBenar };
+      });
       const res = await fetch('/api/bank-soal', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId: eventId || null, tipe, pertanyaan, pilihan, jawabanBenar }),
+        body: JSON.stringify({ eventId: eventId || null, tipe, items }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Gagal menyimpan soal.');
-      setNotice('Soal berhasil ditambahkan.');
+      const total = Number(data.inserted) || items.length;
+      setNotice(total > 1 ? `${total} soal berhasil ditambahkan.` : 'Soal berhasil ditambahkan.');
       reset(); setShowForm(false); await load();
     } catch (err) { setError(err instanceof Error ? err.message : 'Gagal menyimpan soal.'); }
     finally { setSaving(false); }
@@ -159,104 +145,16 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Bank Soal</h1>
           <p className="text-sm text-slate-600 mt-1.5">Bank soal terpusat. Soal pretest dan postest tampil untuk peserta di menu Pendidikan, lalu Test. Soal tanpa event tertentu berlaku untuk semua event.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => { setShowImport(v => !v); setShowForm(false); setError(''); setNotice(''); }} className="inline-flex items-center gap-2 px-5 py-2.5 border border-primary text-primary hover:bg-primary/5 rounded-xl text-[13px] font-semibold cursor-pointer">
-            <Icon name="upload_file" className="text-[18px]" />{showImport ? 'Tutup Impor' : 'Import Soal'}
-          </button>
-          <button onClick={() => { setShowForm(v => !v); setShowImport(false); setError(''); }} className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold cursor-pointer">
-            <Icon name="add_circle" className="text-[18px]" />{showForm ? 'Tutup Form' : 'Tambah Soal'}
-          </button>
-        </div>
+        <button onClick={() => { setShowForm(v => !v); setError(''); }} className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary rounded-xl text-[13px] font-semibold cursor-pointer">
+          <Icon name="add_circle" className="text-[18px]" />{showForm ? 'Tutup Form' : 'Tambah Soal'}
+        </button>
       </div>
 
       {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
       {notice && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</div>}
 
-      {showImport && (
-        <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 text-[13px]">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">Import Soal dari File</h2>
-            <p className="text-slate-600 mt-1">Unggah file CSV atau tempel langsung sel dari Excel. Kolom yang dipakai: <strong>Pertanyaan, A, B, C, D, E, Jawaban, Jenis</strong>. Kolom C–E dan Jenis boleh dikosongkan; jika Jenis kosong, dipakai jenis yang dipilih di bawah.</p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block font-semibold mb-1">Event</label>
-              <select value={importEventId} onChange={e => setImportEventId(e.target.value)} className={inputCls}>
-                <option value="">Semua event (soal umum)</option>
-                {myEvents.map(ev => <option key={ev.id} value={ev.id}>{ev.namaKegiatan}</option>)}
-              </select></div>
-            <div><label className="block font-semibold mb-1">Jenis soal bawaan</label>
-              <select value={importTipe} onChange={e => setImportTipe(e.target.value as Soal['tipe'])} className={inputCls}>
-                <option value="pretest">Pretest</option><option value="postest">Postest</option><option value="latihan">Latihan</option>
-              </select></div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={downloadTemplate} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 font-semibold hover:bg-slate-50 cursor-pointer">
-              <Icon name="download" className="text-[18px]" />Unduh Template CSV
-            </button>
-            <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-semibold cursor-pointer hover:bg-slate-800">
-              <Icon name="upload_file" className="text-[18px]" />Pilih File CSV
-              <input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" className="hidden"
-                onChange={e => { void handleImportFile(e.target.files?.[0]); e.target.value = ''; }} />
-            </label>
-            {importFileName && <span className="text-slate-600">File: <strong>{importFileName}</strong></span>}
-          </div>
-
-          <div>
-            <label className="block font-semibold mb-1">Atau tempel dari Excel</label>
-            <textarea rows={5} value={importText} onChange={e => { setImportText(e.target.value); setImportFileName(''); }}
-              placeholder={'Salin sel dari Excel (termasuk baris judul) lalu tempel di sini.\nContoh judul: Pertanyaan  A  B  C  D  Jawaban'}
-              className={`${inputCls} font-mono text-[12px]`} />
-            <p className="text-[12px] text-slate-500 mt-1">Maksimal {MAX_IMPORT_ROWS} soal per impor. Soal yang sama (event, jenis, dan pertanyaan) otomatis dilewati.</p>
-          </div>
-
-          {importResult.fileError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-800">{importResult.fileError}</div>}
-
-          {importResult.rows.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2 text-[12px] font-semibold">
-                <span className="rounded-full bg-slate-100 text-slate-700 px-3 py-1">{importResult.rows.length} baris</span>
-                <span className="rounded-full bg-emerald-50 text-emerald-800 px-3 py-1">{importValid.length} siap diimpor</span>
-                {importDuplicate.length > 0 && <span className="rounded-full bg-amber-50 text-amber-800 px-3 py-1">{importDuplicate.length} sudah ada (dilewati)</span>}
-                {importInvalid.length > 0 && <span className="rounded-full bg-rose-50 text-rose-800 px-3 py-1">{importInvalid.length} bermasalah (dilewati)</span>}
-              </div>
-              <div className="max-h-80 overflow-auto rounded-xl border border-slate-200">
-                <table className="w-full text-left text-[12px]">
-                  <thead className="bg-slate-50 sticky top-0">
-                    <tr><th className="px-3 py-2">Baris</th><th className="px-3 py-2">Pertanyaan</th><th className="px-3 py-2">Pilihan</th><th className="px-3 py-2">Kunci</th><th className="px-3 py-2">Jenis</th><th className="px-3 py-2">Status</th></tr>
-                  </thead>
-                  <tbody>
-                    {importResult.rows.map(r => (
-                      <tr key={r.line} className="border-t border-slate-100 align-top">
-                        <td className="px-3 py-2 text-slate-500">{r.line}</td>
-                        <td className="px-3 py-2 max-w-[320px]" style={{ overflowWrap: 'anywhere' }}>{r.pertanyaan.length > 120 ? `${r.pertanyaan.slice(0, 120)}…` : r.pertanyaan || '—'}</td>
-                        <td className="px-3 py-2">{r.pilihan.length}</td>
-                        <td className="px-3 py-2 font-bold">{r.jawabanBenar || '—'}</td>
-                        <td className="px-3 py-2">{TIPE_LABEL[r.tipe]}</td>
-                        <td className="px-3 py-2">
-                          {r.error ? <span className="text-rose-700">{r.error}</span>
-                            : r.duplicate ? <span className="text-amber-700">Sudah ada</span>
-                            : <span className="text-emerald-700 font-semibold">Siap</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <button type="button" onClick={closeImport} className="px-5 py-2.5 rounded-xl font-semibold hover:bg-slate-100 cursor-pointer">Batal</button>
-            <button type="button" disabled={importing || importValid.length === 0} onClick={() => void submitImport()} className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-semibold disabled:opacity-50 cursor-pointer">
-              {importing ? 'Mengimpor...' : `Impor ${importValid.length} Soal`}
-            </button>
-          </div>
-        </section>
-      )}
-
       {showForm && (
+        <RichEditorProvider>
         <form onSubmit={submit} className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 text-[13px]">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block font-semibold mb-1">Event</label>
@@ -269,26 +167,55 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
                 <option value="pretest">Pretest</option><option value="postest">Postest</option><option value="latihan">Latihan</option>
               </select></div>
           </div>
-          <div><label className="block font-semibold mb-1">Pertanyaan *</label>
-            <textarea required rows={3} value={pertanyaan} onChange={e => setPertanyaan(e.target.value)} className={inputCls} /></div>
-          <div className="space-y-2">
-            <label className="block font-semibold">Pilihan Jawaban *</label>
-            {pilihan.map((p, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="w-6 font-bold text-slate-600">{HURUF[i]}.</span>
-                <input value={p} onChange={e => setPilihan(prev => prev.map((v, j) => j === i ? e.target.value : v))} className={inputCls} placeholder={`Pilihan ${HURUF[i]}`} />
+
+          {/* Satu toolbar untuk semua kolom: berlaku di kolom yang sedang diklik (pertanyaan atau pilihan jawaban). */}
+          <RichToolbar className="sticky top-2 z-10" />
+
+          {drafts.map((d, n) => (
+            <fieldset key={d.key} className="rounded-xl border border-slate-200 p-4 space-y-3">
+              <legend className="px-2 text-[13px] font-bold text-slate-800">Soal {n + 1}</legend>
+              {drafts.length > 1 && (
+                <div className="flex justify-end -mt-2">
+                  <button type="button" onClick={() => removeDraft(d.key)} className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 text-[12px] font-semibold hover:bg-rose-50 cursor-pointer">Hapus Soal {n + 1}</button>
+                </div>
+              )}
+              <div>
+                <span className="block font-semibold mb-1">Pertanyaan *</span>
+                <RichField id={`soal-${d.key}-pertanyaan`} label={`Soal ${n + 1}: Pertanyaan`} value={d.pertanyaan} placeholder="Ketik pertanyaan di sini…" minHeight={120} required
+                  onChange={html => patchDraft(d.key, x => ({ ...x, pertanyaan: html }))} />
               </div>
-            ))}
-          </div>
-          <div className="max-w-xs"><label className="block font-semibold mb-1">Jawaban Benar *</label>
-            <select value={jawabanBenar} onChange={e => setJawabanBenar(e.target.value)} className={inputCls}>
-              {pilihan.map((_, i) => <option key={i} value={HURUF[i]}>{HURUF[i]}</option>)}
-            </select></div>
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+
+              <div className="space-y-3">
+                <span className="block font-semibold">Pilihan Jawaban * <span className="font-normal text-slate-500">(minimal 2, isi berurutan)</span></span>
+                {d.pilihan.map((p, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className="w-6 pt-2.5 font-bold text-slate-600 shrink-0">{HURUF[i]}.</span>
+                    <div className="min-w-0 flex-1">
+                      <RichField id={`soal-${d.key}-pilihan-${i}`} label={`Soal ${n + 1}: Pilihan ${HURUF[i]}`} value={p} placeholder={`Pilihan ${HURUF[i]}`} minHeight={44}
+                        onChange={html => patchDraft(d.key, x => ({ ...x, pilihan: x.pilihan.map((v, j) => j === i ? html : v) }))} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="max-w-xs"><label className="block font-semibold mb-1" htmlFor={`soal-${d.key}-kunci`}>Jawaban Benar *</label>
+                <select id={`soal-${d.key}-kunci`} value={d.jawabanBenar} onChange={e => patchDraft(d.key, x => ({ ...x, jawabanBenar: e.target.value }))} className={inputCls}>
+                  {d.pilihan.map((_, i) => <option key={i} value={HURUF[i]}>{HURUF[i]}</option>)}
+                </select></div>
+            </fieldset>
+          ))}
+
+          <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-slate-100">
             <button type="button" onClick={() => { reset(); setShowForm(false); }} className="px-5 py-2.5 rounded-xl font-semibold hover:bg-slate-100">Batal</button>
-            <button disabled={saving} type="submit" className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-semibold disabled:opacity-50">{saving ? 'Menyimpan...' : 'Simpan Soal'}</button>
+            <button type="button" onClick={addDraft} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-primary text-primary font-semibold hover:bg-primary/5 cursor-pointer">
+              <Icon name="add_circle" className="text-[18px]" />Tambah Soal
+            </button>
+            <button disabled={saving} type="submit" className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-semibold disabled:opacity-50">
+              {saving ? 'Menyimpan...' : drafts.length > 1 ? `Simpan ${drafts.length} Soal` : 'Simpan Soal'}
+            </button>
           </div>
         </form>
+        </RichEditorProvider>
       )}
 
       <div className="flex gap-2 overflow-x-auto">
@@ -305,14 +232,23 @@ export const BankSoal: React.FC<Props> = ({ currentUser, events }) => {
           : shown.map((s, idx) => (
             <article key={s.id} className="bg-white rounded-2xl border border-slate-200 p-5">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap gap-2 mb-2">
                     <span className="rounded-full bg-sky-50 text-sky-800 px-2.5 py-1 text-[11px] font-bold">{TIPE_LABEL[s.tipe]}</span>
                     <span className="rounded-full bg-slate-100 text-slate-700 px-2.5 py-1 text-[11px] font-semibold">{s.eventId ? eventName(s.eventId) : 'Semua event'}</span>
                   </div>
-                  <p className="font-semibold text-slate-900 whitespace-pre-line" style={{ overflowWrap: 'anywhere' }}>{idx + 1}. {s.pertanyaan}</p>
+                  <div className="flex gap-1.5 font-semibold text-slate-900">
+                    <span className="shrink-0">{idx + 1}.</span>
+                    <RichContent html={s.pertanyaan} className="min-w-0 flex-1" />
+                  </div>
                   <ul className="mt-2 space-y-1 text-[13px]">
-                    {s.pilihan.map((p, i) => <li key={i} className={HURUF[i] === s.jawabanBenar ? 'font-bold text-emerald-700' : 'text-slate-600'}>{HURUF[i]}. {p}{HURUF[i] === s.jawabanBenar ? ' ✓' : ''}</li>)}
+                    {s.pilihan.map((p, i) => (
+                      <li key={i} className={`flex gap-1.5 ${HURUF[i] === s.jawabanBenar ? 'font-bold text-emerald-700' : 'text-slate-600'}`}>
+                        <span className="shrink-0">{HURUF[i]}.</span>
+                        <RichContent html={p} className="min-w-0" />
+                        {HURUF[i] === s.jawabanBenar && <span aria-label="jawaban benar">✓</span>}
+                      </li>
+                    ))}
                   </ul>
                 </div>
                 <button onClick={() => void remove(s)} className="px-3 py-1.5 rounded-lg border border-rose-200 text-rose-700 text-[12px] font-semibold hover:bg-rose-50 shrink-0">Hapus</button>

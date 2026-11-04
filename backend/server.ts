@@ -267,7 +267,7 @@ function mapDbEvent(row: any): TrainingProposal {
     isMitraResmi: row.is_mitra_resmi != null ? Boolean(row.is_mitra_resmi) : true,
     alurSeleksi: row.alur_seleksi ?? 'Seleksi Berkas & Verifikasi Khusus',
     kategoriDisabilitasUtama: row.kategori_disabilitas_utama ?? (
-      (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('braille') || row.nama_kegiatan.toLowerCase().includes('netra'))) ? 'Tunanetra' :
+      (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('braille') || row.nama_kegiatan.toLowerCase().includes('netra'))) ? 'Tuli' :
       (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('isyarat') || row.nama_kegiatan.toLowerCase().includes('tuli') || row.nama_kegiatan.toLowerCase().includes('rungu'))) ? 'Tunarungu' :
       (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('umum') || row.nama_kegiatan.toLowerCase().includes('non-disabilitas') || row.nama_kegiatan.toLowerCase().includes('pengajar'))) ? 'Umum / Non-Disabilitas' :
       (row.nama_kegiatan && row.nama_kegiatan.toLowerCase().includes('daksa')) ? 'Umum / Non-Disabilitas' :
@@ -1874,7 +1874,7 @@ app.post('/api/tpq/:id/register', async (req, res) => {
       return res.status(400).json({ error: 'Usia harus berupa angka antara 1 dan 120 tahun.' });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Format email tidak valid.' });
-    if (!['Tunanetra', 'Tunarungu', 'Tunanetra dan Tunarungu'].includes(disabilitas)) return res.status(400).json({ error: 'Kategori peserta harus Tunanetra, Tunarungu, atau Tunanetra dan Tunarungu.' });
+    if (!['Tuli', 'Tunarungu', 'Tuli dan Tunarungu'].includes(disabilitas)) return res.status(400).json({ error: 'Kategori peserta harus Tuli, Tunarungu, atau Tuli dan Tunarungu.' });
     if (gender && !['Laki-laki', 'Perempuan'].includes(gender)) return res.status(400).json({ error: 'Jenis kelamin tidak valid.' });
     const pool = await getPool();
     await ensureTpqGenderColumn(pool);
@@ -3190,34 +3190,118 @@ app.get('/api/bank-soal', async (req, res) => {
   } catch (e) { console.error('[BankSoal GET]', e); return res.status(500).json({ error: 'Gagal mengambil bank soal.' }); }
 });
 
-app.post('/api/bank-soal', async (req, res) => {
-  try {
-    const user = await requireSuperadminOnly(req, res); if (!user) return;
-    const b = req.body ?? {};
-    const pilihan = Array.isArray(b.pilihan) ? b.pilihan.map((x: any) => String(x).trim()).filter(Boolean) : [];
-    if (!String(b.pertanyaan ?? '').trim() || pilihan.length < 2) return res.status(400).json({ error: 'Pertanyaan dan minimal 2 pilihan jawaban wajib diisi.' });
-    const tipe = ['pretest', 'postest', 'latihan'].includes(b.tipe) ? b.tipe : 'latihan';
-    const jawabanBenar = String(b.jawabanBenar ?? '').trim().toUpperCase();
-    if (!/^[A-E]$/.test(jawabanBenar) || jawabanBenar.charCodeAt(0) - 65 >= pilihan.length) return res.status(400).json({ error: 'Pilih jawaban benar yang sesuai dengan pilihan jawaban.' });
-    const pool = await getPool();
-    const id = `soal_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    await pool.query('INSERT INTO bank_soal (soal_id_string, mitra_id_string, event_id_string, tipe, pertanyaan, pilihan, jawaban_benar) VALUES (?,?,?,?,?,?,?)',
-      [id, String(user.id), b.eventId || null, tipe, String(b.pertanyaan).trim(), JSON.stringify(pilihan), jawabanBenar]);
-    return res.status(201).json({ success: true, id });
-  } catch (e) { console.error('[BankSoal POST]', e); return res.status(500).json({ error: 'Gagal menyimpan soal.' }); }
-});
+// Pertanyaan & pilihan jawaban ditulis lewat editor teks (HTML). Server hanya meloloskan tag format teks dan
+// gaya yang aman (font, ukuran, warna, perataan); script, event handler, tautan, gambar, dll. dibuang.
+const SOAL_ALLOWED_TAGS = new Set(['b', 'strong', 'i', 'em', 'u', 's', 'strike', 'sub', 'sup', 'br', 'p', 'div', 'span', 'ul', 'ol', 'li']);
+const SOAL_TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)((?:\s+[^\s"'<>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'<>=`]+))?)*)\s*\/?>/g;
+const SOAL_ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'<>=`]+)))?/g;
 
-// Impor soal massal (dari file CSV/Excel yang dibaca di browser). Semua baris divalidasi ulang di server;
-// soal yang sama (event + jenis + pertanyaan) dilewati, dan penyimpanan memakai transaksi (semua atau tidak sama sekali).
-app.post('/api/bank-soal/import', async (req, res) => {
+function decodeBasicEntities(v: string): string {
+  return v.replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, '&');
+}
+
+function cleanSoalStyle(raw: string): string {
+  const out: string[] = [];
+  for (const part of decodeBasicEntities(raw).split(';')) {
+    const idx = part.indexOf(':');
+    if (idx < 0) continue;
+    const prop = part.slice(0, idx).trim().toLowerCase();
+    const val = part.slice(idx + 1).trim();
+    if (!val) continue;
+    if (prop === 'font-family' && /^[\p{L}\p{N} _,"'-]{1,200}$/u.test(val)) out.push(`font-family: ${val}`);
+    else if (prop === 'font-size' && /^\d{1,3}(\.\d+)?(px|pt|em|rem|%)$/.test(val)) out.push(`font-size: ${val}`);
+    else if (prop === 'color' && /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\)|[a-z]{3,20})$/i.test(val)) out.push(`color: ${val}`);
+    else if (prop === 'text-align' && /^(left|right|center|justify)$/i.test(val)) out.push(`text-align: ${val.toLowerCase()}`);
+    else if (prop === 'font-weight' && /^(normal|bold|bolder|lighter|[1-9]00)$/i.test(val)) out.push(`font-weight: ${val.toLowerCase()}`);
+    else if (prop === 'font-style' && /^(normal|italic|oblique)$/i.test(val)) out.push(`font-style: ${val.toLowerCase()}`);
+    else if ((prop === 'text-decoration' || prop === 'text-decoration-line') && /^(none|underline|line-through|underline line-through|line-through underline)$/i.test(val)) out.push(`text-decoration: ${val.toLowerCase()}`);
+  }
+  return out.join('; ');
+}
+
+function sanitizeSoalHtml(value: unknown): string {
+  let html = String(value ?? '').replace(/\u0000/g, '');
+  html = html.replace(/<!--[\s\S]*?-->/g, '');
+  html = html.replace(/<\s*(script|style|iframe|object|embed|noscript|template|svg|math|form)\b[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+  let out = '';
+  let last = 0;
+  const textPart = (t: string) => t.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  for (const m of html.matchAll(SOAL_TAG_RE)) {
+    out += textPart(html.slice(last, m.index));
+    last = (m.index ?? 0) + m[0].length;
+    const closing = m[1] === '/';
+    let tag = m[2].toLowerCase();
+    let attrs: Record<string, string> = {};
+    if (!closing) {
+      for (const a of m[3].matchAll(SOAL_ATTR_RE)) attrs[a[1].toLowerCase()] = a[2] ?? a[3] ?? a[4] ?? '';
+    }
+    if (tag === 'font') {
+      // <font face/color> lama dari editor -> <span style>
+      tag = 'span';
+      if (!closing) {
+        const parts: string[] = [];
+        if (attrs.style) parts.push(decodeBasicEntities(attrs.style));
+        if (attrs.face) parts.push(`font-family: "${decodeBasicEntities(attrs.face).replace(/["']/g, '')}"`);
+        if (attrs.color) parts.push(`color: ${decodeBasicEntities(attrs.color)}`);
+        attrs = { style: parts.join(';') };
+      }
+    }
+    if (!SOAL_ALLOWED_TAGS.has(tag)) continue;
+    if (closing) { if (tag !== 'br') out += `</${tag}>`; continue; }
+    const style = attrs.style ? cleanSoalStyle(attrs.style) : '';
+    out += style ? `<${tag} style="${style.replace(/"/g, '&quot;')}">` : `<${tag}>`;
+  }
+  out += textPart(html.slice(last));
+  return out.trim();
+}
+
+// Teks tanpa tag, dipakai untuk memastikan pertanyaan / pilihan tidak kosong.
+function soalPlainText(html: string): string {
+  return decodeBasicEntities(html.replace(/<[^>]*>/g, '').replace(/\u200B/g, '').replace(/&nbsp;|&#160;/gi, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')).trim();
+}
+
+// Validasi + pembersihan satu soal. Mengembalikan pesan error (string) atau soal yang siap disimpan.
+function parseSoalItem(raw: any): string | { pertanyaan: string; pilihan: string[]; jawabanBenar: string } {
+  const it = raw ?? {};
+  const pertanyaan = sanitizeSoalHtml(it.pertanyaan);
+  if (!soalPlainText(pertanyaan)) return 'Pertanyaan wajib diisi.';
+  if (pertanyaan.length > 20000) return 'Pertanyaan terlalu panjang.';
+
+  const rawPilihan: unknown[] = Array.isArray(it.pilihan) ? it.pilihan.slice(0, 5) : [];
+  const cleaned = rawPilihan.map(x => sanitizeSoalHtml(x));
+  const filled = cleaned.map(x => soalPlainText(x).length > 0);
+  const lastFilled = filled.lastIndexOf(true);
+  if (filled.filter(Boolean).length < 2) return 'Minimal 2 pilihan jawaban wajib diisi.';
+  // Huruf jawaban (A, B, C, ...) mengikuti urutan, jadi pilihan tidak boleh ada yang dilewati.
+  if (filled.slice(0, lastFilled + 1).some(f => !f)) return 'Isi pilihan jawaban secara berurutan tanpa melewatkan satu pun.';
+  const pilihan = cleaned.slice(0, lastFilled + 1);
+  if (pilihan.some(p => p.length > 5000)) return 'Salah satu pilihan jawaban terlalu panjang.';
+
+  const jawabanBenar = String(it.jawabanBenar ?? '').trim().toUpperCase();
+  if (!/^[A-E]$/.test(jawabanBenar) || jawabanBenar.charCodeAt(0) - 65 >= pilihan.length) return 'Pilih jawaban benar yang sesuai dengan pilihan jawaban.';
+  return { pertanyaan, pilihan, jawabanBenar };
+}
+
+// Tambah soal. Body: { eventId, tipe, items: [{ pertanyaan, pilihan, jawabanBenar }, ...] } untuk satu kelompok soal
+// (event dan jenis sama), atau satu soal langsung di body. Semua soal disimpan dalam satu transaksi: semua atau tidak sama sekali.
+app.post('/api/bank-soal', async (req, res) => {
   let conn: any = null;
   try {
     const user = await requireSuperadminOnly(req, res); if (!user) return;
     const b = req.body ?? {};
-    const items: any[] = Array.isArray(b.items) ? b.items : [];
-    if (items.length === 0) return res.status(400).json({ error: 'Tidak ada soal untuk diimpor.' });
-    if (items.length > 500) return res.status(400).json({ error: 'Maksimal 500 soal per impor.' });
+    const grouped = Array.isArray(b.items);
+    const rawItems: any[] = grouped ? b.items : [b];
+    if (rawItems.length === 0) return res.status(400).json({ error: 'Tidak ada soal untuk disimpan.' });
+    if (rawItems.length > 50) return res.status(400).json({ error: 'Maksimal 50 soal sekali simpan.' });
 
+    const clean: { pertanyaan: string; pilihan: string[]; jawabanBenar: string }[] = [];
+    for (let i = 0; i < rawItems.length; i++) {
+      const parsed = parseSoalItem(rawItems[i]);
+      if (typeof parsed === 'string') return res.status(400).json({ error: grouped ? `Soal ke-${i + 1}: ${parsed}` : parsed });
+      clean.push(parsed);
+    }
+
+    const tipe = ['pretest', 'postest', 'latihan'].includes(b.tipe) ? b.tipe : 'latihan';
     const eventId = b.eventId ? String(b.eventId) : null;
     const pool = await getPool();
     if (eventId) {
@@ -3225,55 +3309,23 @@ app.post('/api/bank-soal/import', async (req, res) => {
       if (!Array.isArray(ev) || ev.length === 0) return res.status(400).json({ error: 'Event yang dipilih tidak ditemukan.' });
     }
 
-    const normalize = (v: string) => v.toLowerCase().replace(/\s+/g, ' ').trim();
-    const clean: { tipe: string; pertanyaan: string; pilihan: string[]; jawabanBenar: string }[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i] ?? {};
-      const row = i + 1;
-      const pertanyaan = String(it.pertanyaan ?? '').trim();
-      const pilihan = Array.isArray(it.pilihan) ? it.pilihan.map((x: any) => String(x ?? '').trim()) : [];
-      const jawabanBenar = String(it.jawabanBenar ?? '').trim().toUpperCase();
-      const tipe = ['pretest', 'postest', 'latihan'].includes(it.tipe) ? it.tipe : null;
-      if (!pertanyaan || pertanyaan.length > 2000) return res.status(400).json({ error: `Soal ke-${row}: pertanyaan wajib diisi (maksimal 2000 karakter).` });
-      if (pilihan.length < 2 || pilihan.length > 5 || pilihan.some(p => !p || p.length > 500)) return res.status(400).json({ error: `Soal ke-${row}: pilihan jawaban harus 2 sampai 5 dan tidak boleh kosong.` });
-      if (!/^[A-E]$/.test(jawabanBenar) || jawabanBenar.charCodeAt(0) - 65 >= pilihan.length) return res.status(400).json({ error: `Soal ke-${row}: jawaban benar tidak sesuai dengan pilihan jawaban.` });
-      if (!tipe) return res.status(400).json({ error: `Soal ke-${row}: jenis soal harus pretest, postest, atau latihan.` });
-      clean.push({ tipe, pertanyaan, pilihan, jawabanBenar });
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const stamp = Date.now();
+    const ids: string[] = [];
+    for (let i = 0; i < clean.length; i++) {
+      const it = clean[i];
+      const id = `soal_${stamp}_${i}_${Math.random().toString(36).slice(2, 6)}`;
+      await conn.query('INSERT INTO bank_soal (soal_id_string, mitra_id_string, event_id_string, tipe, pertanyaan, pilihan, jawaban_benar) VALUES (?,?,?,?,?,?,?)',
+        [id, String(user.id), eventId, tipe, it.pertanyaan, JSON.stringify(it.pilihan), it.jawabanBenar]);
+      ids.push(id);
     }
-
-    // Lewati soal yang sudah ada di database untuk event yang sama, dan duplikat di dalam file.
-    const [existingRows] = eventId
-      ? await pool.query('SELECT tipe, pertanyaan FROM bank_soal WHERE event_id_string = ?', [eventId])
-      : await pool.query("SELECT tipe, pertanyaan FROM bank_soal WHERE event_id_string IS NULL OR event_id_string = ''");
-    const seen = new Set((existingRows as any[]).map(r => `${r.tipe}|${normalize(String(r.pertanyaan ?? ''))}`));
-    const toInsert = clean.filter(it => {
-      const key = `${it.tipe}|${normalize(it.pertanyaan)}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    if (toInsert.length > 0) {
-      conn = await pool.getConnection();
-      await conn.beginTransaction();
-      const stamp = Date.now();
-      for (let i = 0; i < toInsert.length; i++) {
-        const it = toInsert[i];
-        const id = `soal_${stamp}_${i}_${Math.random().toString(36).slice(2, 6)}`;
-        await conn.query(
-          'INSERT INTO bank_soal (soal_id_string, mitra_id_string, event_id_string, tipe, pertanyaan, pilihan, jawaban_benar) VALUES (?,?,?,?,?,?,?)',
-          [id, String(user.id), eventId, it.tipe, it.pertanyaan, JSON.stringify(it.pilihan), it.jawabanBenar]
-        );
-      }
-      await conn.commit();
-    }
-
-    await addSystemLog('Pengguna', 'system', 'Import Soal', 'bank_soal', `${toInsert.length} soal diimpor ke bank soal (${clean.length - toInsert.length} dilewati karena sudah ada).`, 'success');
-    return res.status(201).json({ success: true, inserted: toInsert.length, skipped: clean.length - toInsert.length });
+    await conn.commit();
+    return res.status(201).json({ success: true, id: ids[0], ids, inserted: ids.length });
   } catch (e) {
     if (conn) { try { await conn.rollback(); } catch { /* abaikan */ } }
-    console.error('[BankSoal IMPORT]', e);
-    return res.status(500).json({ error: 'Gagal mengimpor soal.' });
+    console.error('[BankSoal POST]', e);
+    return res.status(500).json({ error: 'Gagal menyimpan soal.' });
   } finally {
     if (conn) conn.release();
   }

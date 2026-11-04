@@ -41,7 +41,7 @@ export const tpqToMapItem = (p: TPQProgram): TrainingProposal =>
     isAktif: true,
     createdAt: p.createdAt,
     jumlahPendaftar: p.jumlahPendaftar,
-    kategoriDisabilitasUtama: p.jenisTPQ === 'braille' ? 'Tunanetra' : 'Tunarungu',
+    kategoriDisabilitasUtama: p.jenisTPQ === 'braille' ? 'Tuli' : 'Tunarungu',
     targetPeserta: p.targetPeserta || '',
   } as unknown as TrainingProposal);
 
@@ -98,7 +98,7 @@ const getTPQSelectionMeta = (program: TPQProgram) => {
   const disability = raw.match(/Jenis disabilitas:\s*([^.]*)/i)?.[1]?.trim();
   return {
     categories: category ? [category] : [],
-    participants: disability ? (disability === 'Tunanetra Dan Tunarungu' ? ['Tunanetra', 'Tunarungu'] : [disability]) : [],
+    participants: disability ? (disability === 'Tuli Dan Tunarungu' ? ['Tuli', 'Tunarungu'] : [disability]) : [],
   };
 };
 
@@ -275,7 +275,7 @@ export const TPQDetailPage: React.FC<TPQDetailPageProps> = ({ programId, step = 
     );
   }
 
-  // Kategori peserta mengikuti program: 1 jenis -> 1 pilihan; Tunanetra + Tunarungu -> 3 pilihan.
+  // Kategori peserta mengikuti program: 1 jenis -> 1 pilihan; Tuli + Tunarungu -> 3 pilihan.
   const programParticipants = getProgramParticipants(program);
   const pesertaOptions = programParticipants.length > 1
     ? [...programParticipants, programParticipants.join(' dan ')]
@@ -608,20 +608,20 @@ interface TPQHomeSectionProps {
 
 const ALL = 'Semua';
 
-/** Jenis peserta sebuah program (Tunanetra / Tunarungu / keduanya) dari form; data lama memakai jenis Braille/Isyarat. */
+/** Jenis peserta sebuah program (Tuli / Tunarungu / keduanya) dari form; data lama memakai jenis Braille/Isyarat. */
 const getProgramParticipants = (p: TPQProgram): string[] => {
   const fromForm = getTPQSelectionMeta(p).participants.map(v => normalizeTpqLabel(v)).filter(Boolean);
   if (fromForm.length) {
-    // Nilai gabungan "Tunanetra Dan Tunarungu" dipecah menjadi dua jenis.
-    return Array.from(new Set(fromForm.flatMap(v => (v === normalizeTpqLabel(JENIS_PESERTA_GABUNGAN) ? ['Tunanetra', 'Tunarungu'] : [v]))));
+    // Nilai gabungan "Tuli Dan Tunarungu" dipecah menjadi dua jenis.
+    return Array.from(new Set(fromForm.flatMap(v => (v === normalizeTpqLabel(JENIS_PESERTA_GABUNGAN) ? ['Tuli', 'Tunarungu'] : [v]))));
   }
-  return [p.jenisTPQ === 'braille' ? 'Tunanetra' : 'Tunarungu'];
+  return [p.jenisTPQ === 'braille' ? 'Tuli' : 'Tunarungu'];
 };
 
-/** Cocokkan program dengan pilihan filter jenis peserta. "Tunanetra Dan Tunarungu" = program yang melayani keduanya. */
+/** Cocokkan program dengan pilihan filter jenis peserta. "Tuli Dan Tunarungu" = program yang melayani keduanya. */
 const matchesPeserta = (p: TPQProgram, wanted: string): boolean => {
   const have = getProgramParticipants(p);
-  if (wanted === JENIS_PESERTA_GABUNGAN) return have.includes('Tunanetra') && have.includes('Tunarungu');
+  if (wanted === JENIS_PESERTA_GABUNGAN) return have.includes('Tuli') && have.includes('Tunarungu');
   return have.includes(wanted);
 };
 
@@ -726,7 +726,7 @@ export const TPQHomeSection: React.FC<TPQHomeSectionProps> = ({ programs, onOpen
           Katalog Pendidikan
         </h2>
         <p className="text-[14px] text-slate-600 max-w-3xl">
-          Program belajar Al-Qur’an yang dirancang untuk sahabat tunarungu dan tunanetra.
+          Program belajar Al-Qur’an yang dirancang untuk sahabat tunarungu dan tuli.
         </p>
       </div>
 
@@ -752,7 +752,7 @@ export const TPQHomeSection: React.FC<TPQHomeSectionProps> = ({ programs, onOpen
               className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[13px] focus:outline-none focus:border-slate-800"
             >
               <option value={ALL}>Semua Jenis Peserta</option>
-              {JENIS_PESERTA_OPTIONS.map(o => <option key={o} value={o}>{o === JENIS_PESERTA_GABUNGAN ? 'Tunanetra dan Tunarungu' : o}</option>)}
+              {JENIS_PESERTA_OPTIONS.map(o => <option key={o} value={o}>{o === JENIS_PESERTA_GABUNGAN ? 'Tuli dan Tunarungu' : o}</option>)}
             </select>
           </div>
           <div>
