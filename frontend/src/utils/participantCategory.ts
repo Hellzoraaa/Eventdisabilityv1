@@ -1,7 +1,7 @@
 /**
  * Pilihan "Kategori Peserta" pada formulir pendaftaran mengikuti kategori event/program:
  *  - 1 kategori (mis. Umum)                  -> hanya 1 pilihan (Umum)
- *  - 2 kategori (mis. Tunanetra + Tuli) -> 3 pilihan: Tunanetra, Tuli, Tunanetra dan Tuli
+ *  - 2 kategori (mis. Tunanetra + tuli) -> 3 pilihan: Tunanetra, tuli, Tunanetra dan tuli
  */
 export interface ParticipantCategoryOption {
   value: string;
@@ -30,8 +30,8 @@ export const formatParticipantCategory = (value: string, masters: MasterLike[] =
 };
 
 /**
- * @param categoryLabel teks kategori event, mis. "Tuli", "Umum / Non-Disabilitas",
- *                      "Tunanetra dan Tuli" atau "Tunanetra, Tuli"
+ * @param categoryLabel teks kategori event, mis. "Tunanetra", "Umum / Non-Disabilitas",
+ *                      "Tunanetra dan tuli" atau "Tunanetra, tuli"
  * @param masters       master jenis disabilitas (hanya yang aktif dipakai)
  */
 export function getParticipantCategoryOptions(
@@ -66,4 +66,19 @@ export function getParticipantCategoryOptions(
       label: matched.map((m) => m.nama).join(' dan '),
     },
   ];
+}
+
+/**
+ * Pilihan "Kategori Peserta" pada formulir pendaftaran diambil langsung dari master
+ * Kelola Disabilitas (dashboard superadmin), tidak lagi mengikuti kategori event.
+ * Hanya jenis disabilitas yang aktif yang ditampilkan; nilai yang disimpan = kode master.
+ */
+export function getParticipantCategoryOptionsFromMaster(
+  masters: MasterLike[] = [],
+  generalFallback: ParticipantCategoryOption = { value: 'umum', label: 'Umum / Non-Disabilitas' },
+): ParticipantCategoryOption[] {
+  const options = masters
+    .filter((m) => m.isAktif !== false && m.kode && m.nama)
+    .map((m) => ({ value: m.kode, label: m.nama }));
+  return options.length > 0 ? options : [generalFallback];
 }

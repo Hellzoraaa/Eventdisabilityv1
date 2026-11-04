@@ -95,12 +95,12 @@ interface EventDetailPageProps {
   onRegisterSuccess: (participant: Participant) => void;
 }
 
-import { getParticipantCategoryOptions } from '../utils/participantCategory.ts';
+import { getParticipantCategoryOptionsFromMaster } from '../utils/participantCategory.ts';
 
 const FALLBACK_DISABILITY_OPTIONS = [
   { value: 'umum', label: 'Umum / Non-Disabilitas (Masyarakat, Relawan, Guru)' },
   { value: 'tunanetra', label: 'Tunanetra (Braille / Audio)' },
-  { value: 'tuli', label: 'Tuli (Bahasa Isyarat)' },
+  { value: 'tuli', label: 'tuli (Bahasa Isyarat)' },
   { value: 'tunadaksa', label: 'Tunadaksa (Akses Kursi Roda)' },
   { value: 'intelektual_autisme', label: 'Intelektual / Autisme' },
 ];
@@ -160,15 +160,8 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
 
   const activeDisabilities = disabilities.filter((d) => d.isAktif !== false);
 
-  // Pilihan kategori peserta mengikuti kategori event:
-  // 1 kategori -> 1 pilihan; 2 kategori -> masing-masing + gabungan (3 pilihan).
-  const eventCategoryLabel = (() => {
-    if (!event) return '';
-    const master = activeDisabilities.find((d) => d.id === (event as any).disabilityId);
-    return master?.nama || String(event.kategoriDisabilitasUtama || event.kategoriDisabilitas || '').trim();
-  })();
-  const disabilityOptions = getParticipantCategoryOptions(
-    eventCategoryLabel,
+  // Pilihan kategori peserta diambil dari master Kelola Disabilitas (dashboard superadmin).
+  const disabilityOptions = getParticipantCategoryOptionsFromMaster(
     activeDisabilities,
     { value: FALLBACK_DISABILITY_OPTIONS[0].value, label: FALLBACK_DISABILITY_OPTIONS[0].label },
   );
@@ -622,7 +615,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({
                 <div className="max-w-md">
                   <span className="inline-block px-3 py-0.5 rounded-md bg-white/20 text-white text-[11px] font-bold tracking-wider uppercase mb-2">Pelatihan</span>
                   <h2 className="text-xl sm:text-2xl font-black leading-tight tracking-tight uppercase text-white mb-2">{event.namaKegiatan}</h2>
-                  <p className="text-[13px] text-white font-medium mb-4 leading-relaxed">Diselenggarakan oleh Yayasan Tuli Indonesia Untuk Seluruh Masyarakat Indonesia.</p>
+                  <p className="text-[13px] text-white font-medium mb-4 leading-relaxed">Diselenggarakan oleh Yayasan Tunanetra Indonesia Untuk Seluruh Masyarakat Indonesia.</p>
                 </div>
               </div>
             </div>

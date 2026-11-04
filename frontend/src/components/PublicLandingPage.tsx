@@ -492,7 +492,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     window.location.hash = `#test/${tipe}`;
   };
 
-  // Filter Program TPQ dari menu navbar (Tuli / Tuli / Tunanetra Dan Tuli)
+  // Filter Program TPQ dari menu navbar (Tunanetra / tuli / Tunanetra Dan tuli)
   const [tpqPesertaRequest, setTpqPesertaRequest] = useState<{ label: string; n: number } | null>(null);
   const handleTpqSelect = (jenisPeserta: string) => {
     setTpqPesertaRequest(prev => ({ label: jenisPeserta, n: (prev?.n ?? 0) + 1 }));
@@ -936,7 +936,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           color: appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff' ? '#ffffff' : '#1e293b',
         }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        <div className="w-full px-4 sm:px-6 h-20 flex items-center justify-between">
           {/* Logo & Brand Name: klik untuk kembali ke beranda */}
           <button
             type="button"

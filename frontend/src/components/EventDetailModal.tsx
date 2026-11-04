@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icon } from './Icon.tsx';
 import { TrainingProposal, DisabilityMaster } from '../types.ts';
 import { PartnerLogo } from './PartnerLogo.tsx';
 import { VerifiedBadge } from './VerifiedBadge.tsx';
 import { isRegistrationDeadlinePassed } from '../utils/registrationStatus.ts';
 
-import { getParticipantCategoryOptions } from '../utils/participantCategory.ts';
+import { getParticipantCategoryOptionsFromMaster } from '../utils/participantCategory.ts';
 function getPersyaratanItems(value: string | null | undefined): { text: string; jenis?: string; wajib?: boolean }[] {
   if (!value?.trim()) return [];
   try {
@@ -70,14 +70,15 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
   const [regWa, setRegWa] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regAge, setRegAge] = useState('');
-  // Pilihan kategori peserta mengikuti kategori event (1 kategori -> 1 pilihan; 2 kategori -> 3 pilihan).
+  // Pilihan kategori peserta diambil dari master Kelola Disabilitas (dashboard superadmin).
   const activeDisabilities = disabilities.filter(d => d.isAktif !== false);
-  const eventMaster = activeDisabilities.find(d => d.id === (event as any).disabilityId);
-  const disabilityOptions = getParticipantCategoryOptions(
-    eventMaster?.nama || String(event.kategoriDisabilitasUtama || event.kategoriDisabilitas || '').trim(),
-    activeDisabilities,
-  );
+  const disabilityOptions = getParticipantCategoryOptionsFromMaster(activeDisabilities);
   const [regDisability, setRegDisability] = useState(disabilityOptions[0].value);
+  const disabilityOptionsKey = disabilityOptions.map(o => o.value).join('|');
+  // Koreksi pilihan bila master Kelola Disabilitas baru selesai dimuat / berubah.
+  useEffect(() => {
+    setRegDisability(current => (disabilityOptions.some(o => o.value === current) ? current : disabilityOptions[0].value));
+  }, [disabilityOptionsKey]);
   const [regFacilities, setRegFacilities] = useState<string[]>([]);
   const [regNotes, setRegNotes] = useState('');
 
@@ -234,7 +235,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                         {event.namaKegiatan}
                       </h2>
                       <p className="text-[13px] text-cyan-100 font-medium mb-4 leading-relaxed">
-                        Diselenggarakan oleh Yayasan Tuli Indonesia Untuk Seluruh Masyarakat Indonesia.
+                        Diselenggarakan oleh Yayasan Tunanetra Indonesia Untuk Seluruh Masyarakat Indonesia.
                       </p>
                     </div>
 
@@ -335,7 +336,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
 
                     {activeTab === 'syarat' && (
                       <ul className="space-y-2.5 list-disc pl-5 text-slate-700">
-                        <li>Penyandang disabilitas (Tuli, Tuli, Tunadaksa, Autisme) atau pendamping keluarga.</li>
+                        <li>Penyandang disabilitas (Tunanetra, tuli, Tunadaksa, Autisme) atau pendamping keluarga.</li>
                         <li>Memiliki tekad dan komitmen kuat untuk belajar membaca Al-Quran.</li>
                         <li>Berusia minimal 7 tahun ke atas.</li>
                         <li>Mengisi formulir pendaftaran dengan nomor WhatsApp aktif yang dapat dihubungi.</li>
