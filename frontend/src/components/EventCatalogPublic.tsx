@@ -624,7 +624,7 @@ export const EventCatalogPublic: React.FC<EventCatalogPublicProps> = ({
                     ) : (
                       <>
                         <option value="tuli">Tuli (Braille / Audio)</option>
-                        <option value="tunarungu">Tunarungu / Tuli (Bahasa Isyarat BISINDO)</option>
+                        <option value="Tuli">Tuli</option>
                       </>
                     )}
                   </select>
