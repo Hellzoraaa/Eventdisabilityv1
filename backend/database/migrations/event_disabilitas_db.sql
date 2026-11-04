@@ -354,11 +354,11 @@ INSERT IGNORE INTO `users`
 INSERT IGNORE INTO `disabilities`
 (`disability_id_string`, `kode`, `nama`, `kategori_utama`, `deskripsi`,
  `metode_pembelajaran`, `fasilitas_rekomendasi`, `warna_hex`, `icon`, `is_aktif`) VALUES
-('dis_tuli', 'tuli', 'Tuli', 'Sensorik',
+('dis_tunanetra', 'tunanetra', 'Tunanetra', 'Sensorik',
  'Peserta didik dengan hambatan penglihatan.',
  'Al-Quran Braille, audio, dan pendampingan membaca.',
  '["Al-Quran Braille","Audio Al-Quran","Pendamping"]', '#005a71', 'visibility', 1),
-('dis_tunarungu', 'tunarungu', 'Tunarungu', 'Sensorik',
+('dis_tuli', 'tuli', 'Tuli', 'Sensorik',
  'Peserta didik dengan hambatan pendengaran.',
  'Bahasa isyarat, visual, dan materi tertulis.',
  '["Penerjemah Bahasa Isyarat","Materi Visual","Materi Tertulis"]', '#2563eb', 'ear-off', 1),

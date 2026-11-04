@@ -267,8 +267,8 @@ function mapDbEvent(row: any): TrainingProposal {
     isMitraResmi: row.is_mitra_resmi != null ? Boolean(row.is_mitra_resmi) : true,
     alurSeleksi: row.alur_seleksi ?? 'Seleksi Berkas & Verifikasi Khusus',
     kategoriDisabilitasUtama: row.kategori_disabilitas_utama ?? (
-      (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('braille') || row.nama_kegiatan.toLowerCase().includes('netra'))) ? 'Tuli' :
-      (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('isyarat') || row.nama_kegiatan.toLowerCase().includes('tuli') || row.nama_kegiatan.toLowerCase().includes('rungu'))) ? 'Tunarungu' :
+      (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('braille') || row.nama_kegiatan.toLowerCase().includes('netra'))) ? 'Tunanetra' :
+      (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('isyarat') || row.nama_kegiatan.toLowerCase().includes('tuli') || row.nama_kegiatan.toLowerCase().includes('rungu'))) ? 'Tuli' :
       (row.nama_kegiatan && (row.nama_kegiatan.toLowerCase().includes('umum') || row.nama_kegiatan.toLowerCase().includes('non-disabilitas') || row.nama_kegiatan.toLowerCase().includes('pengajar'))) ? 'Umum / Non-Disabilitas' :
       (row.nama_kegiatan && row.nama_kegiatan.toLowerCase().includes('daksa')) ? 'Umum / Non-Disabilitas' :
       (row.nama_kegiatan && row.nama_kegiatan.toLowerCase().includes('autis')) ? 'Umum / Non-Disabilitas' : 'Umum / Non-Disabilitas'
@@ -1874,7 +1874,7 @@ app.post('/api/tpq/:id/register', async (req, res) => {
       return res.status(400).json({ error: 'Usia harus berupa angka antara 1 dan 120 tahun.' });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Format email tidak valid.' });
-    if (!['Tuli', 'Tunarungu', 'Tuli dan Tunarungu'].includes(disabilitas)) return res.status(400).json({ error: 'Kategori peserta harus Tuli, Tunarungu, atau Tuli dan Tunarungu.' });
+    if (!['Tunanetra', 'Tuli', 'Tunanetra dan Tuli'].includes(disabilitas)) return res.status(400).json({ error: 'Kategori peserta harus Tunanetra, Tuli, atau Tunanetra dan Tuli.' });
     if (gender && !['Laki-laki', 'Perempuan'].includes(gender)) return res.status(400).json({ error: 'Jenis kelamin tidak valid.' });
     const pool = await getPool();
     await ensureTpqGenderColumn(pool);

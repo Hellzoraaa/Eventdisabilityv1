@@ -655,7 +655,7 @@ export default function App() {
       tanggalKegiatan: p.tanggalMulai || '', targetDanKuotaPeserta: p.kuotaPeserta,
       kebutuhanPeserta: p.kebutuhanFasilitas || [], status: 'disetujui' as const,
       isAktif: true, createdAt: p.createdAt, jumlahPendaftar: p.jumlahPendaftar,
-      kategoriDisabilitasUtama: p.jenisTPQ === 'braille' ? 'Tuli' : 'Tunarungu',
+      kategoriDisabilitasUtama: p.jenisTPQ === 'braille' ? 'Tunanetra' : 'Tuli',
       targetPeserta: p.targetPeserta || '',
     } as TrainingProposal)),
   ];

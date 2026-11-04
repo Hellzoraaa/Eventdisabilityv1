@@ -81,7 +81,7 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
   // Pilihan kategori dan jenis peserta independen: pengguna bebas memilih beberapa opsi.
   const [kategoriPendidikan, setKategoriPendidikan] = useState<string[]>([]);
   const [disabilitasPendidikan, setDisabilitasPendidikan] = useState<string[]>([]);
-  const kategoriOptions = getKategoriOptions('Tuli Dan Tunarungu');
+  const kategoriOptions = getKategoriOptions('Tunanetra Dan Tuli');
   const toggleSelection = (items: string[], setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) =>
     setter(items.includes(value) ? items.filter(item => item !== value) : [...items, value]);
   const [jenisPendidikan, setJenisPendidikan] = useState('');
@@ -247,8 +247,8 @@ export const TPQManagement: React.FC<TPQManagementProps> = ({ currentUser, onPro
     if (!savedDisabilities.length) {
       const legacyDisability = savedMeta.match(/Jenis disabilitas:\s*([^.]*)/i)?.[1]?.trim() || '';
       const legacy = JENIS_PESERTA_OPTIONS.find(o => o.toLowerCase() === legacyDisability.toLowerCase());
-      if (legacy && legacy !== 'Tuli Dan Tunarungu') savedDisabilities = [legacy];
-      else if (legacy === 'Tuli Dan Tunarungu') savedDisabilities = ['Tuli', 'Tunarungu'];
+      if (legacy && legacy !== 'Tunanetra Dan Tuli') savedDisabilities = [legacy];
+      else if (legacy === 'Tunanetra Dan Tuli') savedDisabilities = ['Tunanetra', 'Tuli'];
     }
     setKategoriPendidikan(savedCategories);
     setDisabilitasPendidikan(savedDisabilities);

@@ -48,8 +48,8 @@ export interface SystemLog {
 }
 
 export type DisabilityType =
+  | 'tunanetra'
   | 'tuli'
-  | 'tunarungu'
   | 'tunadaksa'
   | 'intelektual_autisme'
   | 'pendamping_umum'

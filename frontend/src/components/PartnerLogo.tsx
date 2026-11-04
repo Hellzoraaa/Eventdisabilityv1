@@ -194,7 +194,7 @@ export const PartnerLogo: React.FC<PartnerLogoProps> = ({
   }
 
   // 7. Komunitas Tuli Mengaji Nusantara
-  if (lower.includes('tuli mengaji') || lower.includes('tunarungu')) {
+  if (lower.includes('tuli mengaji') || lower.includes('tuli')) {
     return (
       <div className="relative inline-flex items-center gap-1.5">
         <div

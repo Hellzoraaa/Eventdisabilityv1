@@ -997,7 +997,7 @@ export const DisabilityManagement: React.FC<DisabilityManagementProps> = ({
                 <label className="block text-gray-700 font-medium mb-1">Nama Ragam Disabilitas *</label>
                 <input
                   type="text"
-                  placeholder="Contoh: Tuli (Braille)"
+                  placeholder="Contoh: Tunanetra (Braille)"
                   value={disabilityFormData.nama}
                   onChange={e => setDisabilityFormData({ ...disabilityFormData, nama: e.target.value })}
                   className="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:border-blue-500"

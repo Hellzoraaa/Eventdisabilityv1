@@ -131,9 +131,9 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
   // Real Disability & General Category Calculation
 
-  const countNetra = participantsList.filter(p => p.kategoriDisabilitas === 'tuli').length;
+  const countNetra = participantsList.filter(p => p.kategoriDisabilitas === 'tunanetra').length;
 
-  const countRungu = participantsList.filter(p => p.kategoriDisabilitas === 'tunarungu').length;
+  const countRungu = participantsList.filter(p => p.kategoriDisabilitas === 'tuli').length;
 
   const countDaksa = participantsList.filter(p => p.kategoriDisabilitas === 'tunadaksa').length;
 
@@ -235,9 +235,9 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
       csv += 'Kategori Peserta,Jumlah Peserta,Persentase Real,Fasilitas Pendukung\n';
 
-      csv += `Tuli (Braille),${countNetra},${pctNetra}%,Mushaf Quran Braille & Relawan Pendamping\n`;
+      csv += `Tunanetra (Braille),${countNetra},${pctNetra}%,Mushaf Quran Braille & Relawan Pendamping\n`;
 
-      csv += `Tunarungu (Isyarat),${countRungu},${pctRungu}%,Juru Bahasa Isyarat (JBI) & Video Visual\n`;
+      csv += `Tuli (Bahasa Isyarat),${countRungu},${pctRungu}%,Juru Bahasa Isyarat (JBI) & Video Visual\n`;
 
       if (countUmum > 0) {
 
@@ -359,9 +359,9 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
         const key = String(value || '').toLowerCase();
 
-        if (key === 'tuli') return 'Tuli (Braille)';
+        if (key === 'tunanetra') return 'Tunanetra (Braille)';
 
-        if (key === 'tunarungu') return 'Tunarungu / Tuli (Isyarat)';
+        if (key === 'tuli') return 'Tuli (Bahasa Isyarat)';
 
         if (key === 'umum' || key === 'pendamping_umum' || !key) return 'Umum / Non Disabilitas';
 
@@ -375,9 +375,9 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
       const countCategory = (keys: string[]) => participantsList.filter(p => keys.includes(String(p.kategoriDisabilitas || '').toLowerCase())).length;
 
-      const countNetraPdf = countCategory(['tuli']);
+      const countNetraPdf = countCategory(['tunanetra']);
 
-      const countRunguPdf = countCategory(['tunarungu']);
+      const countRunguPdf = countCategory(['tuli']);
 
       const countUmumPdf = countCategory(['umum', 'pendamping_umum', '']);
 
@@ -549,9 +549,9 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
       const categoryRows: (string | number)[][] = [
 
-        ['Tuli (Braille)', countNetraPdf, percent(countNetraPdf), 'Mushaf Quran Braille LPMQ'],
+        ['Tunanetra (Braille)', countNetraPdf, percent(countNetraPdf), 'Mushaf Quran Braille LPMQ'],
 
-        ['Tunarungu / Tuli (Isyarat)', countRunguPdf, percent(countRunguPdf), 'Mushaf Al-Qur’an Isyarat'],
+        ['Tuli (Bahasa Isyarat)', countRunguPdf, percent(countRunguPdf), 'Mushaf Al-Qur’an Isyarat'],
 
         ['Kategori Umum / Non Disabilitas', countUmumPdf, percent(countUmumPdf), 'Masyarakat Umum'],
 
@@ -1127,7 +1127,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
 
 
-              {/* Tunarungu */}
+              {/* Tuli */}
 
               <div>
 
@@ -1137,7 +1137,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigateToParticipants }) =>
 
                     <span className="w-2.5 h-2.5 rounded-full bg-[#fc6f5a]"></span>
 
-                    Tunarungu 
+                    Tuli 
 
                   </span>
 

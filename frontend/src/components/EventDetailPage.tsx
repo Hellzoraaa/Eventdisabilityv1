@@ -99,8 +99,8 @@ import { getParticipantCategoryOptions } from '../utils/participantCategory.ts';
 
 const FALLBACK_DISABILITY_OPTIONS = [
   { value: 'umum', label: 'Umum / Non-Disabilitas (Masyarakat, Relawan, Guru)' },
-  { value: 'tuli', label: 'Tuli (Braille / Audio)' },
-  { value: 'tunarungu', label: 'Tunarungu (Bahasa Isyarat)' },
+  { value: 'tunanetra', label: 'Tunanetra (Braille / Audio)' },
+  { value: 'tuli', label: 'Tuli (Bahasa Isyarat)' },
   { value: 'tunadaksa', label: 'Tunadaksa (Akses Kursi Roda)' },
   { value: 'intelektual_autisme', label: 'Intelektual / Autisme' },
 ];

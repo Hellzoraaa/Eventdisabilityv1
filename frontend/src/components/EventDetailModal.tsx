@@ -335,7 +335,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
 
                     {activeTab === 'syarat' && (
                       <ul className="space-y-2.5 list-disc pl-5 text-slate-700">
-                        <li>Penyandang disabilitas (Tuli, Tunarungu, Tunadaksa, Autisme) atau pendamping keluarga.</li>
+                        <li>Penyandang disabilitas (Tuli, Tuli, Tunadaksa, Autisme) atau pendamping keluarga.</li>
                         <li>Memiliki tekad dan komitmen kuat untuk belajar membaca Al-Quran.</li>
                         <li>Berusia minimal 7 tahun ke atas.</li>
                         <li>Mengisi formulir pendaftaran dengan nomor WhatsApp aktif yang dapat dihubungi.</li>

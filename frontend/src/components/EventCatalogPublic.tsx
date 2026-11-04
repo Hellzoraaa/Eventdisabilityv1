@@ -92,8 +92,8 @@ export const EventCatalogPublic: React.FC<EventCatalogPublicProps> = ({
   const [email, setEmail] = useState('');
   const [usia, setUsia] = useState('');
   const [kategoriDisabilitas, setKategoriDisabilitas] = useState<
-    'tuli' | 'tunarungu' | 'tunadaksa' | 'intelektual_autisme' | 'pendamping_umum'
-  >('tuli');
+    'tunanetra' | 'tuli' | 'tunadaksa' | 'intelektual_autisme' | 'pendamping_umum'
+  >('tunanetra');
   const [kebutuhanFasilitas, setKebutuhanFasilitas] = useState<string[]>([]);
   const [catatanKhusus, setCatatanKhusus] = useState('');
 
@@ -623,7 +623,7 @@ export const EventCatalogPublic: React.FC<EventCatalogPublicProps> = ({
                       ))
                     ) : (
                       <>
-                        <option value="tuli">Tuli (Braille / Audio)</option>
+                        <option value="tunanetra">Tunanetra (Braille / Audio)</option>
                         <option value="Tuli">Tuli</option>
                       </>
                     )}

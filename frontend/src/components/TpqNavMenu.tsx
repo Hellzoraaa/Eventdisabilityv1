@@ -6,7 +6,7 @@ import { Icon } from './Icon.tsx';
  *
  *   Program TPQ
  *   ├─ Tuli  ─────────────► Program Al-Qur’an Braille
- *   └─ Tunarungu  ▸ (submenu)
+ *   └─ Tuli  ▸ (submenu)
  *        ├─ Program Al-Qur’an Isyarat Metode Kitabah
  *        ├─ Program Al-Qur’an Isyarat Metode Tilawah
  *        └─ Program Al-Qur’an Komunikasi Total
@@ -20,7 +20,7 @@ export interface TpqSelection {
   label: string;
   /** Jenis TPQ pada data (TPQProgram.jenisTPQ). */
   jenis: 'braille' | 'isyarat';
-  /** Metode (hanya untuk Tunarungu). */
+  /** Metode (hanya untuk Tuli). */
   metode?: 'kitabah' | 'tilawah' | 'komunikasi-total';
 }
 
@@ -35,12 +35,12 @@ export interface TpqMenuGroup {
 
 export const TPQ_MENU: TpqMenuGroup[] = [
   {
-    label: 'Tuli',
+    label: 'Tunanetra',
     icon: 'visibility',
     select: { label: 'Program Al-Qur’an Braille', jenis: 'braille' },
   },
   {
-    label: 'Tunarungu',
+    label: 'Tuli',
     icon: 'sign_language',
     children: [
       { label: 'Program Al-Qur’an Isyarat Metode Kitabah', jenis: 'isyarat', metode: 'kitabah' },
@@ -56,7 +56,7 @@ export const TPQ_MENU: TpqMenuGroup[] = [
  * mengubah isi form.
  * ------------------------------------------------------------------------- */
 
-export const JENIS_PESERTA_GABUNGAN = 'Tuli Dan Tunarungu';
+export const JENIS_PESERTA_GABUNGAN = 'Tunanetra Dan Tuli';
 
 /** Pilihan "Jenis Peserta": tiap grup menu + gabungan keduanya. */
 export const JENIS_PESERTA_OPTIONS: string[] = [
@@ -84,7 +84,7 @@ export const findKategori = (value: string): TpqSelection | undefined => {
 
 interface Props {
   variant?: 'desktop' | 'mobile';
-  /** Dipanggil saat sebuah jenis peserta diklik: 'Tuli', 'Tunarungu', atau 'Tuli Dan Tunarungu'. */
+  /** Dipanggil saat sebuah jenis peserta diklik: 'Tuli', 'Tuli', atau 'Tunanetra Dan Tuli'. */
   onSelect: (jenisPeserta: string) => void;
   /** Dipanggil setelah item dipilih (mis. untuk menutup menu mobile). */
   onNavigate?: () => void;
@@ -152,7 +152,7 @@ export const TpqNavMenu: React.FC<Props> = ({
                 onClick={() => choose(opt)}
                 className="flex items-center gap-2 text-left px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors"
               >
-                {opt === JENIS_PESERTA_GABUNGAN ? 'Tuli dan Tunarungu' : opt}
+                {opt === JENIS_PESERTA_GABUNGAN ? 'Tunanetra dan Tuli' : opt}
               </button>
             ))}
           </div>
@@ -189,7 +189,7 @@ export const TpqNavMenu: React.FC<Props> = ({
               onClick={() => choose(opt)}
               className="flex w-full items-center gap-2.5 text-left px-3 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-slate-50 transition-colors cursor-pointer"
             >
-              {opt === JENIS_PESERTA_GABUNGAN ? 'Tuli dan Tunarungu' : opt}
+              {opt === JENIS_PESERTA_GABUNGAN ? 'Tunanetra dan Tuli' : opt}
             </button>
           ))}
         </div>

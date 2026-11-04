@@ -96,10 +96,10 @@ export function getEventDisabilityCategory(
 
     // Synonyms and special terms mapping
     if (kodeLower.includes('netra') || namaLower.includes('netra')) {
-      keywords.push('braille', 'low vision', 'blind', 'tuli');
+      keywords.push('braille', 'low vision', 'blind', 'tunanetra');
     }
-    if (kodeLower.includes('rungu') || namaLower.includes('rungu') || namaLower.includes('tuli')) {
-      keywords.push('tuli', 'isyarat', 'bisindo', 'sibi', 'deaf', 'tunarungu', 'bisu');
+    if (kodeLower.includes('rungu') || namaLower.includes('rungu') || namaLower.includes('tunanetra')) {
+      keywords.push('tunanetra', 'isyarat', 'bisindo', 'sibi', 'deaf', 'tuli', 'bisu');
     }
     if (kodeLower.includes('daksa') || namaLower.includes('daksa')) {
       keywords.push('kursi roda', 'fisik', 'tunadaksa', 'motorik', 'amputee', 'paraplegia');

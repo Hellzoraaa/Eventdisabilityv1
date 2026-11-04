@@ -42,7 +42,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
     noWa: '',
     email: '',
     usia: 25,
-    kategoriDisabilitas: 'tuli' as Participant['kategoriDisabilitas'],
+    kategoriDisabilitas: 'tunanetra' as Participant['kategoriDisabilitas'],
     statusKehadiran: 'terdaftar' as Participant['statusKehadiran'],
     kebutuhanFasilitas: [] as string[],
     catatanKhusus: '',
@@ -60,7 +60,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
     noWa: '',
     email: '',
     usia: 25,
-    kategoriDisabilitas: 'tuli' as Participant['kategoriDisabilitas'],
+    kategoriDisabilitas: 'tunanetra' as Participant['kategoriDisabilitas'],
     statusKehadiran: 'terdaftar' as Participant['statusKehadiran'],
     kebutuhanFasilitas: [] as string[],
     catatanKhusus: '',
@@ -221,7 +221,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
           noWa: '',
           email: '',
           usia: 25,
-          kategoriDisabilitas: 'tuli',
+          kategoriDisabilitas: 'tunanetra',
           statusKehadiran: 'terdaftar',
           kebutuhanFasilitas: [],
           catatanKhusus: '',
@@ -437,8 +437,8 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
               ) : (
                 <>
                   <option value="umum">Umum / Non-Disabilitas</option>
-                  <option value="tuli">Tuli (Braille)</option>
-                  <option value="tunarungu">Tunarungu / Tuli (Isyarat)</option>
+                  <option value="tunanetra">Tunanetra (Braille)</option>
+                  <option value="tuli">Tuli / Tuli (Isyarat)</option>
                   <option value="tunadaksa">Tunadaksa (Fisik)</option>
                   <option value="intelektual_autisme">Intelektual & Autisme</option>
                   <option value="pendamping_umum">Pendamping / Relawan</option>
@@ -514,9 +514,9 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                     </td>
                     <td className="py-3 px-4">
                       <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${
-                        p.kategoriDisabilitas === 'tuli'
+                        p.kategoriDisabilitas === 'tunanetra'
                           ? 'bg-[#005a71]/10 text-[#005a71]'
-                          : p.kategoriDisabilitas === 'tunarungu'
+                          : p.kategoriDisabilitas === 'tuli'
                           ? 'bg-[#fc6f5a]/15 text-[#b93822]'
                           : p.kategoriDisabilitas === 'tunadaksa'
                           ? 'bg-[#ffb95f]/20 text-[#855300]'
@@ -674,8 +674,8 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                       ))
                     ) : (
                       <>
-                        <option value="tuli">Tuli (Braille)</option>
-                        <option value="tunarungu">Tunarungu (Isyarat)</option>
+                        <option value="tunanetra">Tunanetra (Braille)</option>
+                        <option value="tuli">Tuli (Isyarat)</option>
                         <option value="tunadaksa">Tunadaksa</option>
                         <option value="intelektual_autisme">Intelektual & Autisme</option>
                         <option value="pendamping_umum">Pendamping / Umum</option>
@@ -824,8 +824,8 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                       ))
                     ) : (
                       <>
-                        <option value="tuli">Tuli (Braille)</option>
-                        <option value="tunarungu">Tunarungu (Isyarat)</option>
+                        <option value="tunanetra">Tunanetra (Braille)</option>
+                        <option value="tuli">Tuli (Isyarat)</option>
                         <option value="tunadaksa">Tunadaksa</option>
                         <option value="intelektual_autisme">Intelektual & Autisme</option>
                         <option value="pendamping_umum">Pendamping / Umum</option>
