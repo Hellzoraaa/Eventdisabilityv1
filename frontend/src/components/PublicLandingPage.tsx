@@ -9,7 +9,8 @@ import { VerifiedBadge } from './VerifiedBadge.tsx';
 import { isRegistrationDeadlinePassed } from '../utils/registrationStatus.ts';
 import { EventDetailModal } from './EventDetailModal.tsx';
 import { openEventPage } from './EventDetailPage.tsx';
-import { TpqNavMenu } from './TpqNavMenu.tsx';
+import { TpqNavMenu, TPQ_MENU } from './TpqNavMenu.tsx';
+import { QuranNavMenu, QuranJenis } from './QuranNavMenu.tsx';
 import { TPQHomeSection, openTPQPage, isTPQPublished, tpqToMapItem, isTPQMapId, tpqIdFromMapId } from './TPQHomeSection.tsx';
 import { ArticlesPage, parseArticleHash, ARTIKEL_MENU, articleHref } from './ArticlesPage.tsx';
 
@@ -89,6 +90,26 @@ const cocokTipeEvent = (tipe: TipeEvent, teks: string): boolean => {
   if (tipe === 'lomba') return isLomba;
   // pelatihan: semua yang bukan ToT dan bukan lomba
   return !isTot && !isLomba && /pelatihan|training/i.test(teks);
+};
+
+// Qur’an Isyarat -> kategori peserta "Tuli", Qur’an Braille -> "Tunanetra".
+// Dicari di master Kelola Disabilitas (nama / kode), lalu dipakai sebagai nilai filter "Kategori Peserta".
+const QURAN_JENIS_RE: Record<QuranJenis, RegExp> = {
+  braille: /braille|tuna[\s_-]*netra|netra|low[\s_-]*vision/i,
+  isyarat: /isyarat|tuli|rungu|bisu|wicara|\bjbi\b|bisindo/i,
+};
+const QURAN_JENIS_EXACT: Record<QuranJenis, RegExp> = {
+  braille: /^tuna[\s_-]*netra$/i,
+  isyarat: /^tuli$/i,
+};
+const cariDisabilitasQuran = (jenis: QuranJenis, list: any[]): any | undefined => {
+  const lain = QURAN_JENIS_RE[jenis === 'braille' ? 'isyarat' : 'braille'];
+  const teks = (d: any) => `${d.nama || ''} ${d.kode || ''}`;
+  return (
+    list.find(d => QURAN_JENIS_EXACT[jenis].test(String(d.nama || '').trim()) || QURAN_JENIS_EXACT[jenis].test(String(d.kode || '').trim())) ??
+    list.find(d => QURAN_JENIS_RE[jenis].test(teks(d)) && !lain.test(teks(d))) ??
+    list.find(d => QURAN_JENIS_RE[jenis].test(teks(d)))
+  );
 };
 
 // Ambil bagian YYYY-MM-DD dari sebuah string tanggal (abaikan jam / keterangan setelahnya).
@@ -469,8 +490,13 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   // Pilih tipe event dari dropdown navbar: saring katalog lalu gulir ke section katalog
-  const handleSelectEventTipe = (tipe: TipeEvent) => {
+  const handleSelectEventTipe = (tipe: TipeEvent, quranJenis: QuranJenis | null = null) => {
     setEventTipe(tipe);
+    // Dari menu Qur’an Isyarat / Qur’an Braille: isi juga filter "Kategori Peserta" (Tuli / Tunanetra)
+    if (quranJenis) {
+      const dis = cariDisabilitasQuran(quranJenis, activeDisabilities);
+      if (dis) setFilterDisability(dis.kode);
+    }
     setIsEventTestOpen(false);
     setIsEventDropdownOpen(false);
     setIsMobileEventOpen(false);
@@ -499,6 +525,13 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     const dariArtikel = parseArticleHash(window.location.hash).open;
     if (dariArtikel) window.location.hash = 'program-tpq';
     setTimeout(() => document.getElementById('program-tpq')?.scrollIntoView({ behavior: 'smooth' }), dariArtikel ? 250 : 50);
+  };
+
+  // Qur’an Isyarat / Qur’an Braille > Pendidikan: saring Program TPQ sesuai jenis peserta (Tuli / Tunanetra)
+  const handleQuranPendidikan = (jenis: QuranJenis) => {
+    const group = TPQ_MENU.find(g => g.select?.jenis === jenis || g.children?.some(c => c.jenis === jenis));
+    setIsMobileNavOpen(false);
+    if (group) handleTpqSelect(group.label);
   };
 
 
@@ -765,6 +798,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
     filterDisability,
     filterCity,
     eventTipe,
+    activeDisabilities,
     activeEventCategories,
     facilityJBI,
     facilityWheelchair,
@@ -936,14 +970,14 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           color: appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff' ? '#ffffff' : '#1e293b',
         }}
       >
-        <div className="w-full px-4 sm:px-6 h-20 flex items-center justify-between">
+        <div className="w-full px-4 sm:px-6 h-20 flex items-center justify-between gap-4">
           {/* Logo & Brand Name: klik untuk kembali ke beranda */}
           <button
             type="button"
             onClick={goBeranda}
             aria-label="Kembali ke beranda"
             title="Kembali ke beranda"
-            className="flex items-center gap-3 text-left cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-lg"
+            className="pub-nav-brand flex items-center gap-3 text-left cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-lg"
           >
             {appSettings?.logo ? (
               <img
@@ -956,7 +990,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             )}
             <div className="flex flex-col">
               <span
-                className={`font-bold text-[17px] sm:text-[19px] tracking-tight leading-tight ${appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff' ? 'text-white' : 'text-slate-900'
+                className={`pub-nav-title font-bold text-[17px] sm:text-[19px] tracking-tight leading-tight ${appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff' ? 'text-white' : 'text-slate-900'
                   }`}
               >
                 {appSettings?.applicationName || "Event for Disability to Qur'an"}
@@ -971,9 +1005,9 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           </button>
 
           {/* Nav Items & Action Buttons */}
-          <div className="flex items-center gap-3 sm:gap-6">
+          <div className="pub-nav-right flex items-center gap-3 sm:gap-6">
             <div
-              className={`hidden lg:flex items-center gap-6 text-[14px] font-medium ${appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff' ? 'text-white/90' : 'text-slate-600'
+              className={`pub-nav-menu hidden min-[1300px]:flex items-center gap-6 text-[14px] font-medium ${appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff' ? 'text-white/90' : 'text-slate-600'
                 }`}
             >
               <a href="/" onClick={goBeranda} className={navItemClass('beranda')}>
@@ -982,6 +1016,26 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               <a href="#tentang-kami" className={navItemClass('tentang-kami')}>
                 {currentLang === 'id' ? 'Tentang Kami' : 'About Us'}
               </a>
+
+              {/* Dropdown Qur’an Isyarat & Qur’an Braille: jalan pintas ke Event, Test, Pendidikan, dan Artikel */}
+              <QuranNavMenu
+                jenis="isyarat"
+                label={currentLang === 'id' ? 'Qur’an Isyarat' : 'Sign Language Qur’an'}
+                lang={currentLang}
+                className={navItemClass('quran-isyarat')}
+                onSelectEvent={(jenis, tipe) => handleSelectEventTipe(tipe, jenis)}
+                onSelectTest={handleSelectTestFromEvent}
+                onSelectPendidikan={handleQuranPendidikan}
+              />
+              <QuranNavMenu
+                jenis="braille"
+                label={currentLang === 'id' ? 'Qur’an Braille' : 'Braille Qur’an'}
+                lang={currentLang}
+                className={navItemClass('quran-braille')}
+                onSelectEvent={(jenis, tipe) => handleSelectEventTipe(tipe, jenis)}
+                onSelectTest={handleSelectTestFromEvent}
+                onSelectPendidikan={handleQuranPendidikan}
+              />
 
               {/* Dropdown Event: Training Of Trainer / Pelatihan / Lomba Umum */}
               <div ref={eventDropdownRef} className="relative">
@@ -1271,7 +1325,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
-              className="lg:hidden p-2 rounded-xl border border-slate-200/50 hover:bg-black/5 transition-colors cursor-pointer flex items-center justify-center text-slate-800"
+              className="min-[1300px]:hidden p-2 rounded-xl border border-slate-200/50 hover:bg-black/5 transition-colors cursor-pointer flex items-center justify-center text-slate-800"
               aria-label="Menu"
             >
               <Icon name={isMobileNavOpen ? 'close' : 'menu'} className="text-[24px]" />
@@ -1281,7 +1335,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
         {/* Mobile Navigation Dropdown Menu */}
         {isMobileNavOpen && (
-          <div className="lg:hidden border-t border-slate-100 bg-white/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-lg text-slate-800">
+          <div className="min-[1300px]:hidden border-t border-slate-100 bg-white/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-lg text-slate-800">
             <div className="flex flex-col space-y-1 text-[14px] font-medium text-slate-700">
               <a
                 href="/"
@@ -1297,6 +1351,28 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               >
                 Tentang Kami
               </a>
+
+              {/* Dropdown Qur’an Isyarat & Qur’an Braille (mobile) */}
+              <QuranNavMenu
+                variant="mobile"
+                jenis="isyarat"
+                label="Qur’an Isyarat"
+                className={navMobileClass('quran-isyarat')}
+                onSelectEvent={(jenis, tipe) => handleSelectEventTipe(tipe, jenis)}
+                onSelectTest={handleSelectTestFromEvent}
+                onSelectPendidikan={handleQuranPendidikan}
+                onNavigate={() => setIsMobileNavOpen(false)}
+              />
+              <QuranNavMenu
+                variant="mobile"
+                jenis="braille"
+                label="Qur’an Braille"
+                className={navMobileClass('quran-braille')}
+                onSelectEvent={(jenis, tipe) => handleSelectEventTipe(tipe, jenis)}
+                onSelectTest={handleSelectTestFromEvent}
+                onSelectPendidikan={handleQuranPendidikan}
+                onNavigate={() => setIsMobileNavOpen(false)}
+              />
 
               {/* Dropdown Event (mobile) */}
               <div>

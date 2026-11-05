@@ -89,3 +89,16 @@ code, kbd, samp, pre, .font-mono {
 .rich-content sup { vertical-align: super; font-size: smaller; }
 .rich-content ul { list-style: disc; margin: 0.25em 0; padding-left: 1.4em; }
 .rich-content ol { list-style: decimal; margin: 0.25em 0; padding-left: 1.4em; }
+
+/* ---- Navbar publik: tata letak stabil saat zoom in / zoom out di Chrome ----
+   Zoom mengubah lebar viewport (dalam CSS px), sehingga menu bisa terhimpit atau pecah baris.
+   Di lebar desktop (>= 1300px) ukuran dibuat fluid dan tidak boleh pecah baris; di bawah itu
+   menu otomatis menjadi hamburger. Perubahan ukuran sengaja memakai CSS biasa (bukan utility
+   Tailwind) supaya hasilnya pasti, tidak bergantung urutan variant. Samakan angka 1300px
+   dengan min-[1300px] di PublicLandingPage.tsx. */
+@media (min-width: 1300px) {
+  .pub-nav-brand { flex-shrink: 0; white-space: nowrap; }
+  .pub-nav-title { font-size: clamp(15px, 1.2vw, 19px); }
+  .pub-nav-menu  { gap: clamp(0.625rem, 1vw, 1.5rem); font-size: clamp(12.5px, 0.95vw, 14px); white-space: nowrap; }
+  .pub-nav-right { flex-shrink: 0; gap: clamp(0.625rem, 1vw, 1.5rem); }
+}
