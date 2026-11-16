@@ -1010,9 +1010,6 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               className={`pub-nav-menu hidden min-[1300px]:flex items-center gap-6 text-[14px] font-medium ${appSettings?.topbarColor && appSettings.topbarColor !== '#ffffff' ? 'text-white/90' : 'text-slate-600'
                 }`}
             >
-              <a href="/" onClick={goBeranda} className={navItemClass('beranda')}>
-                {currentLang === 'id' ? 'Beranda' : 'Home'}
-              </a>
               <a href="#tentang-kami" className={navItemClass('tentang-kami')}>
                 {currentLang === 'id' ? 'Tentang Kami' : 'About Us'}
               </a>
@@ -1338,13 +1335,6 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           <div className="min-[1300px]:hidden border-t border-slate-100 bg-white/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-lg text-slate-800">
             <div className="flex flex-col space-y-1 text-[14px] font-medium text-slate-700">
               <a
-                href="/"
-                onClick={goBeranda}
-                className={navMobileClass('beranda')}
-              >
-                Beranda
-              </a>
-              <a
                 href="#tentang-kami"
                 onClick={() => setIsMobileNavOpen(false)}
                 className={navMobileClass('tentang-kami')}
@@ -1620,7 +1610,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               : 'text-slate-900'
               }`}
           >
-            SISTEM INFORMASI LAYANAN<br className="hidden sm:inline" />
+            PUSAT LAYANAN INFORMASI<br className="hidden sm:inline" />
             <span
               className={
                 appSettings?.headerBgImage && appSettings.headerBgOverlay !== 'light'
@@ -1628,7 +1618,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                   : 'text-slate-900'
               }
             >
-              AL-QUR'AN DISABILITAS
+              AL-QUR'AN BAGI DISABILITAS
             </span>
           </h1>
 
@@ -1639,7 +1629,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
               : 'text-slate-600'
               }`}
           >
-           Platform Yang Menghubungkan Peserta Dengan Penyelenggara Pembelejaran Al-Qur'an Braille Dan Isyarat. Menyediakan Informasi Pelatihan, Pendaftaran, Materi Pembelajaran Serta Integrasi Dan Kegiatan.
+           Platform yang Menghubungkan Peserta dengan Penyelenggara Pembelajaran Al-Qur'an Braille dan Isyarat, Menyediakan Informasi Kegiatan Pelatihan, Pendidikan dan Materi Pembelajaran.
           </h2>
         </section>
       </div>
@@ -1663,14 +1653,14 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
             <div className="lg:col-span-7">
               <h1 className="text-2xl sm:text-4xl font-extrabold text-[#006316] tracking-tight leading-tight">
-                SISTEM INFORMASI LAYANAN 
-                AL-QUR'AN DISABILITAS
+                PUSAT LAYANAN INFORMASI
+                AL-QUR'AN BAGI DISABILITAS
               </h1>
             </div>
 
             <div className="lg:col-span-5 flex flex-col justify-between h-full">
               <h2 className="text-[14px] sm:text-[15px] text-[#006316] leading-relaxed mb-4">
-                Mendorong Pemetaan Akses Pembelajaran AL-Qur'an Yang Inklusif Melalui Kolaborasi, Integrasi Data, Dan Penguatan Ekosistem Pembelajaran Bagi Semua Kalangan.
+                Mendorong Pemetaan Akses Pembelajaran Al-Qur'an yang Inklusif Melalui Kolaborasi, Integrasi Data, dan Penguatan Ekosistem Pembelajaran Bagi Semua Kalangan.
               </h2>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -1696,7 +1686,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             <StatCard
               className="sm:col-span-2"
               value={totalKegiatanBerlangsung}
-              label="Event & Pendidikan Yang Sedang Berlangsung"
+              label="Event & Pendidikan yang Sedang Berlangsung"
             />
             <StatCard
               className="sm:col-span-2"
@@ -1711,12 +1701,12 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
             <StatCard
               className="sm:col-span-2"
               value={totalPeserta}
-              label="Peserta Yang Sudah Bergabung"
+              label="Peserta yang Sudah Bergabung"
             />
             <StatCard
               className="sm:col-span-2"
               value={communities.length}
-              label="Mitra Yang Sudah Bergabung"
+              label="Mitra yang Sudah Bergabung"
             />
             <StatCard
               className="sm:col-span-2"
