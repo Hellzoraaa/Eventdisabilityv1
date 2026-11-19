@@ -25,7 +25,8 @@ export const EventCatalogPublic: React.FC<EventCatalogPublicProps> = ({
   onSelectCategoryFilter,
   eventCategories = [],
 }) => {
-  const activeEvents = events.filter(e => e.isAktif && e.status === 'disetujui');
+  const today = new Date().toISOString().slice(0, 10);
+  const activeEvents = events.filter(e => e.isAktif && e.status === 'disetujui' && String(e.publishMode || '').toLowerCase() !== 'private' && !e.invitationToken);
   // Izin publikasi adalah sumber utama visibilitas; jangan sembunyikan program hanya karena flag isAktif lama bernilai 0.
   const activeTPQPrograms = tpqPrograms.filter(p =>
     String(p.status ?? '').trim().toLowerCase() === 'disetujui' &&

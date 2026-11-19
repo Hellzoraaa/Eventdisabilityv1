@@ -287,7 +287,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   }, [categoriesList]);
   const activeEvents = useMemo(() => {
     return events
-      .filter(e => e.isAktif || e.status === 'disetujui')
+      .filter(e => (e.isAktif || e.status === 'disetujui') && String(e.publishMode || '').toLowerCase() !== 'private' && !e.invitationToken)
       .map(ev => {
         // Resolve latest user data (organizationLogo and organizationName)
         const matchedUser = users.find(
@@ -1604,23 +1604,28 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
           </div>
 
           {/* Large Bold Headline */}
-          <h1
-            className={`text-3xl sm:text-5xl md:text-[54px] font-extrabold tracking-tight leading-[1.15] mb-5 ${appSettings?.headerBgImage && appSettings.headerBgOverlay !== 'light'
-              ? 'text-white drop-shadow-md'
-              : 'text-slate-900'
-              }`}
+        <h1
+          className={`w-full max-w-full px-4 sm:px-0 mx-auto text-center sm:text-left
+            text-[1.6rem] min-[375px]:text-[1.85rem] sm:text-5xl md:text-[54px]
+            font-extrabold tracking-tight
+            leading-[1.3] sm:leading-[1.15]
+            mb-5 break-words text-balance ${
+              appSettings?.headerBgImage && appSettings.headerBgOverlay !== 'light'
+                ? 'text-white drop-shadow-md'
+                : 'text-slate-900'
+            }`}
+        >
+          <span className="block">PUSAT LAYANAN INFORMASI</span>
+          <span
+            className={`block mt-1.5 sm:mt-0 ${
+              appSettings?.headerBgImage && appSettings.headerBgOverlay !== 'light'
+                ? 'text-amber-300'
+                : 'text-slate-900'
+            }`}
           >
-            PUSAT LAYANAN INFORMASI<br className="hidden sm:inline" />
-            <span
-              className={
-                appSettings?.headerBgImage && appSettings.headerBgOverlay !== 'light'
-                  ? 'text-amber-300'
-                  : 'text-slate-900'
-              }
-            >
-              AL-QUR'AN BAGI DISABILITAS
-            </span>
-          </h1>
+            AL-QUR'AN BAGI DISABILITAS
+          </span>
+        </h1>
 
           {/* Subtitle */}
           <h2

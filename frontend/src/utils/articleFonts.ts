@@ -64,11 +64,16 @@ export function fontTagsToInlineStyle(html: string): string {
   doc.body.querySelectorAll('font').forEach((node) => {
     const face = node.getAttribute('face');
     const color = node.getAttribute('color');
-    if (face) node.style.fontFamily = `"${face.replace(/["']/g, '')}", sans-serif`;
+    if (face) node.style.setProperty('font-family', `"${face.replace(/["']/g, '')}", sans-serif`, 'important');
     if (color) node.style.color = color;
     if (!node.style.fontSize) node.removeAttribute('size');
     node.removeAttribute('face');
     node.removeAttribute('color');
+  });
+  // Inline !important diperlukan karena stylesheet aplikasi menetapkan font global !important.
+  doc.body.querySelectorAll<HTMLElement>('[style]').forEach((node) => {
+    const family = node.style.getPropertyValue('font-family');
+    if (family) node.style.setProperty('font-family', family, 'important');
   });
   return doc.body.innerHTML;
 }

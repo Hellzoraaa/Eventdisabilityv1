@@ -210,7 +210,7 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
   // Active & Approved events from database that have valid geographic coordinates
   const activeEvents = useMemo(() => {
     return events.filter(
-      e => (e.isAktif || e.status === 'disetujui') &&
+      e => (e.isAktif || e.status === 'disetujui') && String(e.publishMode || '').toLowerCase() !== 'private' && !e.invitationToken &&
            e.latitude !== undefined &&
            e.longitude !== undefined &&
            e.latitude !== null &&

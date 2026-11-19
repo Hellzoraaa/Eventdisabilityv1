@@ -259,6 +259,8 @@ function mapDbEvent(row: any): TrainingProposal {
     alasanPenolakan: row.alasan_penolakan ?? undefined,
     tanggalPersetujuan: row.tanggal_persetujuan ? new Date(row.tanggal_persetujuan).toISOString() : undefined,
     linkPendaftaran: row.link_pendaftaran ?? undefined,
+    publishMode: row.publish_mode ?? 'public',
+    invitationToken: row.invitation_token ?? undefined,
     isAktif: Boolean(row.is_aktif),
     jumlahPendaftar: Number(row.jumlah_pendaftar ?? 0),
     mitraLogo: row.mitra_logo ?? row.mitraLogo ?? row.userOrgLogo ?? undefined,
@@ -1304,8 +1306,23 @@ async function ensureEventDurasiColumn(pool: any) {
   eventDurasiColumnReady = true;
 }
 
+let eventPublicationColumnsReady = false;
+async function ensureEventPublicationColumns(pool: any) {
+  if (eventPublicationColumnsReady) return;
+  const columns = [
+    ['publish_mode', "ALTER TABLE training_proposals ADD COLUMN publish_mode ENUM('public','private') NOT NULL DEFAULT 'public'"],
+    ['invitation_token', 'ALTER TABLE training_proposals ADD COLUMN invitation_token VARCHAR(80) NULL'],
+  ];
+  for (const [name, ddl] of columns) {
+    const [rows] = await pool.query("SELECT COUNT(*) AS n FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='training_proposals' AND COLUMN_NAME=?", [name]);
+    if (!Number((rows as any[])[0]?.n)) await pool.query(ddl);
+  }
+  eventPublicationColumnsReady = true;
+}
+
 async function getEventById(id: string) {
   const pool = await getPool();
+  await ensureEventPublicationColumns(pool);
   const [rows] = await pool.query(
     `SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo
      FROM training_proposals tp
@@ -1319,6 +1336,7 @@ async function getEventById(id: string) {
 app.get('/api/events', async (req, res) => {
   try {
     const pool = await getPool();
+    await ensureEventPublicationColumns(pool);
     const { status, mitraId, activeOnly } = req.query;
     const params: any[] = [];
     const where: string[] = [];
@@ -1338,6 +1356,24 @@ app.get('/api/events', async (req, res) => {
   } catch (error) {
     console.error('[Events GET] error:', error);
     return res.status(500).json({ error: 'Gagal mengambil event dari MySQL.' });
+  }
+});
+
+app.get('/api/events/invitation/:token', async (req, res) => {
+  try {
+    const pool = await getPool();
+    await ensureEventPublicationColumns(pool);
+    const [rows] = await pool.query(
+      `SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo
+       FROM training_proposals tp LEFT JOIN users u ON u.id=tp.mitra_id
+       WHERE tp.invitation_token=? AND tp.status='disetujui' AND tp.publish_mode='private' LIMIT 1`,
+      [String(req.params.token)]
+    );
+    if (!Array.isArray(rows) || !rows.length) return res.status(404).json({ error: 'Link undangan tidak valid atau event belum disetujui.' });
+    return res.json({ event: mapDbEvent(rows[0]) });
+  } catch (error) {
+    console.error('[Event invitation] error:', error);
+    return res.status(500).json({ error: 'Gagal membuka undangan.' });
   }
 });
 
@@ -1378,14 +1414,16 @@ app.post('/api/events', async (req, res) => {
     if (waLinkEvent && !/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]+/.test(waLinkEvent)) return res.status(400).json({ error: 'Link WhatsApp harus berupa https://chat.whatsapp.com/...' });
 
     await ensureEventDurasiColumn(pool);
+    await ensureEventPublicationColumns(pool);
+    const publishMode = body.publishMode === 'private' ? 'private' : 'public';
     await pool.query(
       `INSERT INTO training_proposals
        (proposal_id_string, mitra_id, mitra_id_string, nama_kegiatan, jenis_event,
         event_category_id_string, disability_id_string, deskripsi_pelatihan, benefit, persyaratan, batas_pendaftaran,
         lokasi_dan_alamat, provinsi, kota, latitude, longitude, tanggal_kegiatan, tanggal_berakhir_kegiatan, waktu_mulai, waktu_selesai,
         target_dan_kuota_peserta, kuota_disetujui, kebutuhan_peserta, foto_dokumentasi, status,
-        alasan_penolakan, tanggal_persetujuan, link_pendaftaran, is_aktif, jumlah_pendaftar, link_grup_wa, durasi_program)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'menunggu_persetujuan', NULL, NULL, NULL, FALSE, 0, ?, ?)`,
+        alasan_penolakan, tanggal_persetujuan, link_pendaftaran, is_aktif, jumlah_pendaftar, link_grup_wa, durasi_program, publish_mode)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'menunggu_persetujuan', NULL, NULL, NULL, FALSE, 0, ?, ?, ?)`,
       [
         proposalId,
         mitraNumericId,
@@ -1413,6 +1451,7 @@ app.post('/api/events', async (req, res) => {
         JSON.stringify(Array.isArray(body.fotoDokumentasi) ? body.fotoDokumentasi : []),
         waLinkEvent,
         durasiProgramEvent,
+        publishMode,
       ]
     );
 
@@ -1460,7 +1499,7 @@ app.put('/api/events/:id', async (req, res) => {
         event_category_id_string=?, disability_id_string=?, deskripsi_pelatihan=?, benefit=?, persyaratan=?, batas_pendaftaran=?,
         lokasi_dan_alamat=?, provinsi=?, kota=?, latitude=?, longitude=?, tanggal_kegiatan=?, tanggal_berakhir_kegiatan=?, waktu_mulai=?, waktu_selesai=?,
         target_dan_kuota_peserta=?, kuota_disetujui=?, kebutuhan_peserta=?, foto_dokumentasi=?, status=?,
-        alasan_penolakan=?, link_pendaftaran=?, is_aktif=?, link_grup_wa=COALESCE(?, link_grup_wa), durasi_program=?, updated_at=CURRENT_TIMESTAMP
+        alasan_penolakan=?, link_pendaftaran=?, is_aktif=?, link_grup_wa=COALESCE(?, link_grup_wa), durasi_program=?, publish_mode=?, updated_at=CURRENT_TIMESTAMP
        WHERE proposal_id_string=?`,
       [
         mitraNumericId,
@@ -1497,6 +1536,7 @@ app.put('/api/events/:id', async (req, res) => {
         body.isAktif !== undefined ? Boolean(body.isAktif) : current.isAktif,
         waLinkPut,
         durasiProgramPut,
+        body.publishMode === 'private' || body.publishMode === 'public' ? body.publishMode : ((current as any).publishMode || 'public'),
         id
       ]
     );
@@ -1532,17 +1572,27 @@ app.post('/api/events/:id/approve', async (req, res) => {
     if (!event) return res.status(404).json({ error: 'Permintaan pelatihan tidak ditemukan.' });
 
     const quota = Number(event.targetDanKuotaPeserta || req.body?.targetKuota || 0);
+    const requestedPublishMode = req.body?.publishMode === 'private' ? 'private' : 'public';
     const origin = req.protocol + '://' + req.get('host');
-    const link = `${origin}/#daftar/${id}`;
+    const frontendOrigin = String(process.env.FRONTEND_URL || req.get('origin') || origin).replace(/\/$/, '');
     const pool = await getPool();
+    await ensureEventPublicationColumns(pool);
+    if (requestedPublishMode === 'private') {
+      const categoryId = String(event.eventCategoryId || '').trim();
+      if (!categoryId) return res.status(400).json({ error: 'Event belum memiliki kategori. Lengkapi kategori event sebelum menyetujui sebagai Event Terbatas.' });
+      const [categoryRows] = await pool.query('SELECT category_id_string FROM event_categories WHERE category_id_string=? AND is_aktif=1 LIMIT 1', [categoryId]);
+      if (!Array.isArray(categoryRows) || !categoryRows.length) return res.status(400).json({ error: 'Kategori event tidak ditemukan atau tidak aktif. Periksa kembali kategori event sebelum persetujuan Event Terbatas.' });
+    }
+    const token = requestedPublishMode === 'private' ? crypto.randomBytes(24).toString('hex') : null;
+    const link = requestedPublishMode === 'private' ? `${frontendOrigin}/#undangan/${token}` : `${frontendOrigin}/#daftar/${id}`;
 
     await pool.query(
       `UPDATE training_proposals
-       SET status='disetujui', kuota_disetujui=?, link_pendaftaran=?,
+       SET status='disetujui', publish_mode=?, kuota_disetujui=?, link_pendaftaran=?, invitation_token=?,
            tanggal_persetujuan=CURRENT_TIMESTAMP, is_aktif=TRUE,
            alasan_penolakan=NULL, updated_at=CURRENT_TIMESTAMP
        WHERE proposal_id_string=?`,
-      [quota, link, id]
+      [requestedPublishMode, quota, link, token, id]
     );
     const updated = await getEventById(id);
     await addSystemLog('Super Administrator', 'superadmin', 'Verifikasi Event Pelatihan', 'events', `Event ${updated?.namaKegiatan ?? id} disetujui.`, 'success');

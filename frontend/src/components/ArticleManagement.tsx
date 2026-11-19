@@ -180,6 +180,7 @@ export const ArticleManagement: React.FC = () => {
   const fontInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState(false);
   const [previewHtml, setPreviewHtml] = useState('');
+  const [tableContext, setTableContext] = useState(false);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
@@ -352,8 +353,9 @@ export const ArticleManagement: React.FC = () => {
   // Simpan posisi kursor setiap kali seleksi berubah di dalam editor,
   // sehingga toolbar/dropdown tetap bekerja walau fokus pindah.
   useEffect(() => {
-    document.addEventListener('selectionchange', rememberSelection);
-    return () => document.removeEventListener('selectionchange', rememberSelection);
+    const handleSelectionChange = () => { rememberSelection(); updateTableContext(); };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, []);
 
   const restoreSelection = () => {
@@ -373,17 +375,75 @@ export const ArticleManagement: React.FC = () => {
     rememberSelection();
   };
 
+  /** Ubah tag <font face> bawaan execCommand menjadi span inline !important. */
+  const normalizeEditorFontMarkup = () => {
+    const root = editorRef.current;
+    if (!root) return;
+    root.querySelectorAll('font[face]').forEach((node) => {
+      const old = node as HTMLElement;
+      const span = document.createElement('span');
+      span.style.setProperty('font-family', `"${(old.getAttribute('face') || '').replace(/["']/g, '')}", sans-serif`, 'important');
+      while (old.firstChild) span.appendChild(old.firstChild);
+      old.replaceWith(span);
+    });
+    root.querySelectorAll<HTMLElement>('[style*="font-family"]').forEach((node) => {
+      const family = node.style.fontFamily;
+      if (family) node.style.setProperty('font-family', family, 'important');
+    });
+  };
+
+  /** Pasang span font pada caret agar karakter yang diketik berikutnya memakai font terpilih. */
+  const ensureCaretFont = (family: string) => {
+    const root = editorRef.current;
+    const selection = window.getSelection();
+    if (!root || !selection || !selection.rangeCount || !family) return;
+    const range = selection.getRangeAt(0);
+    if (!root.contains(range.startContainer) || !range.collapsed) return;
+    const parent = range.startContainer.nodeType === Node.ELEMENT_NODE
+      ? range.startContainer as HTMLElement
+      : range.startContainer.parentElement;
+
+    // Sel tabel harus mewarisi font toolbar sejak caret pertama kali masuk,
+    // bukan menunggu pengguna menekan Enter. Ini juga menangani sel kosong.
+    const cell = parent?.closest<HTMLTableCellElement>('td, th');
+    if (cell && root.contains(cell)) {
+      cell.style.setProperty('font-family', `"${family.replace(/["']/g, '')}", sans-serif`, 'important');
+    }
+
+    const existing = parent?.closest<HTMLElement>('[data-article-font="true"]');
+    if (existing) {
+      existing.style.setProperty('font-family', `"${family.replace(/["']/g, '')}", sans-serif`, 'important');
+      return;
+    }
+    const span = document.createElement('span');
+    span.dataset.articleFont = 'true';
+    span.style.setProperty('font-family', `"${family.replace(/["']/g, '')}", sans-serif`, 'important');
+    span.appendChild(document.createTextNode('\u200B'));
+    range.insertNode(span);
+    range.setStart(span.firstChild as Text, 1);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+  };
+
   const setInlineStyle = (property: 'fontName' | 'fontSize', value: string) => {
     restoreSelection();
+    ensureEditorSelection();
 
     if (property === 'fontName') {
-      // styleWithCSS: hasilnya <span style="font-family:..."> (bukan <font face>) agar tidak dikalahkan CSS global.
-      document.execCommand('styleWithCSS', false, 'true');
-      document.execCommand('fontName', false, value);
-      document.execCommand('styleWithCSS', false, 'false');
+      const selection = window.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      if (range?.collapsed) {
+        ensureCaretFont(value);
+      } else {
+        document.execCommand('styleWithCSS', false, 'true');
+        document.execCommand('fontName', false, value);
+        document.execCommand('styleWithCSS', false, 'false');
+        normalizeEditorFontMarkup();
+      }
     } else {
       document.execCommand('fontSize', false, '7');
-
       editorRef.current?.querySelectorAll('font[size="7"]').forEach((node) => {
         const element = node as HTMLElement;
         element.removeAttribute('size');
@@ -393,6 +453,8 @@ export const ArticleManagement: React.FC = () => {
 
     rememberSelection();
   };
+
+
 
   const isAllowedUrl = (value: string, protocols: string[]) => {
     try {
@@ -481,11 +543,221 @@ export const ArticleManagement: React.FC = () => {
     }
   };
 
+  /**
+   * Resize tabel dengan drag pada batas sel:
+   * - batas kanan sel: ubah lebar kolom tersebut;
+   * - batas bawah sel: ubah tinggi baris tersebut;
+   * - sudut kanan-bawah sel terakhir: ubah ukuran tabel secara keseluruhan.
+   */
+  const startTableResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    const cell = target.closest('td, th') as HTMLTableCellElement | null;
+    if (!cell || !editorRef.current?.contains(cell)) return;
+
+    const table = cell.closest('table') as HTMLTableElement | null;
+    const row = cell.parentElement as HTMLTableRowElement | null;
+    if (!table || !row) return;
+
+    const rect = cell.getBoundingClientRect();
+    const edgeSize = 7;
+    const nearRight = rect.right - event.clientX <= edgeSize;
+    const nearBottom = rect.bottom - event.clientY <= edgeSize;
+    if (!nearRight && !nearBottom) return;
+
+    const rows = Array.from(table.rows);
+    const rowIndex = rows.indexOf(row);
+    const cellIndex = Array.from(row.cells).indexOf(cell);
+    const isLastCell = rowIndex === rows.length - 1 && cellIndex === row.cells.length - 1;
+    const mode: 'table' | 'column' | 'row' =
+      nearRight && nearBottom && isLastCell
+        ? 'table'
+        : nearRight
+          ? 'column'
+          : 'row';
+
+    event.preventDefault();
+    event.stopPropagation();
+    rememberSelection();
+
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startWidth = table.getBoundingClientRect().width;
+    const startHeight = table.getBoundingClientRect().height;
+    const startCellWidth = cell.getBoundingClientRect().width;
+    const startRowHeight = row.getBoundingClientRect().height;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = mode === 'row' ? 'row-resize' : mode === 'column' ? 'col-resize' : 'nwse-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+
+      if (mode === 'table') {
+        table.style.width = `${Math.max(120, startWidth + dx)}px`;
+        table.style.height = `${Math.max(45, startHeight + dy)}px`;
+      } else if (mode === 'column') {
+        const nextWidth = Math.max(45, startCellWidth + dx);
+        table.style.tableLayout = 'fixed';
+        rows.forEach((tableRow) => {
+          const targetCell = tableRow.cells[cellIndex];
+          if (targetCell) {
+            targetCell.style.width = `${nextWidth}px`;
+            targetCell.style.minWidth = `${nextWidth}px`;
+          }
+        });
+      } else {
+        const nextHeight = Math.max(28, startRowHeight + dy);
+        row.style.height = `${nextHeight}px`;
+        Array.from(row.cells).forEach((rowCell) => {
+          rowCell.style.height = `${nextHeight}px`;
+        });
+      }
+    };
+
+    const onEnd = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      rememberSelection();
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd, { once: true });
+    window.addEventListener('pointercancel', onEnd, { once: true });
+  };
+
+  const getActiveTableCell = (): HTMLTableCellElement | null => {
+    const range = savedRangeRef.current;
+    const node = range?.startContainer || window.getSelection()?.anchorNode;
+    if (!node) return null;
+    const element = node.nodeType === Node.ELEMENT_NODE
+      ? node as Element
+      : node.parentElement;
+    const cell = element?.closest('td,th') as HTMLTableCellElement | null;
+    return cell && editorRef.current?.contains(cell) ? cell : null;
+  };
+
+  const updateTableContext = () => setTableContext(Boolean(getActiveTableCell()));
+
   const insertTable = () => {
-    runCommand(
-      'insertHTML',
-      '<table style="width:100%;border-collapse:collapse" border="1"><tbody><tr><td style="padding:8px">Isi sel</td><td style="padding:8px">Isi sel</td></tr><tr><td style="padding:8px">Isi sel</td><td style="padding:8px">Isi sel</td></tr></tbody></table><p><br></p>',
-    );
+    const rows = Math.max(1, Math.min(20, Number(window.prompt('Jumlah baris:', '2')) || 2));
+    const cols = Math.max(1, Math.min(12, Number(window.prompt('Jumlah kolom:', '2')) || 2));
+    const body = Array.from({ length: rows }, () =>
+      `<tr>${Array.from({ length: cols }, () => '<td style="border:1px solid #cbd5e1;padding:8px;min-width:80px"><br></td>').join('')}</tr>`,
+    ).join('');
+    runCommand('insertHTML', `<table style="width:100%;border-collapse:collapse;margin:12px 0" border="1"><tbody>${body}</tbody></table><p><br></p>`);
+    updateTableContext();
+  };
+
+  const requireTableCell = () => {
+    const cell = getActiveTableCell();
+    if (!cell) setMessage({ type: 'error', text: 'Letakkan kursor di dalam sel tabel terlebih dahulu.' });
+    return cell;
+  };
+
+  const insertTableRow = (where: 'above' | 'below') => {
+    const cell = requireTableCell(); if (!cell) return;
+    const row = cell.parentElement as HTMLTableRowElement;
+    const table = cell.closest('table'); if (!table) return;
+    const newRow = table.insertRow(row.rowIndex + (where === 'below' ? 1 : 0));
+    Array.from(row.cells).forEach((source) => {
+      const newCell = newRow.insertCell();
+      newCell.innerHTML = '<br>';
+      newCell.style.cssText = source.style.cssText || 'border:1px solid #cbd5e1;padding:8px';
+    });
+    setMessage({ type: 'success', text: `Baris berhasil ditambahkan ${where === 'above' ? 'di atas' : 'di bawah'}.` });
+  };
+
+  const insertTableColumn = (where: 'left' | 'right') => {
+    const cell = requireTableCell(); if (!cell) return;
+    const table = cell.closest('table'); if (!table) return;
+    const row = cell.parentElement as HTMLTableRowElement;
+    const index = Array.prototype.indexOf.call(row.cells, cell) + (where === 'right' ? 1 : 0);
+    Array.from(table.rows).forEach((tableRow) => {
+      const reference = tableRow.cells[Math.min(index, tableRow.cells.length - 1)];
+      const newCell = tableRow.insertCell(reference ? Math.min(index, tableRow.cells.length) : -1);
+      newCell.innerHTML = '<br>';
+      newCell.style.cssText = cell.style.cssText || 'border:1px solid #cbd5e1;padding:8px';
+    });
+    setMessage({ type: 'success', text: `Kolom berhasil ditambahkan di ${where === 'left' ? 'kiri' : 'kanan'}.` });
+  };
+
+  const deleteTableRow = () => {
+    const cell = requireTableCell(); if (!cell) return;
+    const table = cell.closest('table'); const row = cell.parentElement as HTMLTableRowElement;
+    if (!table || table.rows.length <= 1) { setMessage({ type: 'error', text: 'Tabel harus menyisakan minimal satu baris.' }); return; }
+    table.deleteRow(row.rowIndex);
+  };
+
+  const deleteTableColumn = () => {
+    const cell = requireTableCell(); if (!cell) return;
+    const table = cell.closest('table'); const row = cell.parentElement as HTMLTableRowElement;
+    if (!table || row.cells.length <= 1) { setMessage({ type: 'error', text: 'Tabel harus menyisakan minimal satu kolom.' }); return; }
+    const index = Array.prototype.indexOf.call(row.cells, cell);
+    Array.from(table.rows).forEach((tableRow) => tableRow.cells[index]?.remove());
+  };
+
+  const mergeTableCell = (direction: 'right' | 'down') => {
+    const cell = requireTableCell(); if (!cell) return;
+    const row = cell.parentElement as HTMLTableRowElement;
+    const table = cell.closest('table'); if (!table) return;
+    if (direction === 'right') {
+      const next = cell.nextElementSibling as HTMLTableCellElement | null;
+      if (!next || next.tagName !== cell.tagName) { setMessage({ type: 'error', text: 'Tidak ada sel di sebelah kanan untuk digabung.' }); return; }
+      cell.innerHTML += next.innerHTML ? `<br>${next.innerHTML}` : '';
+      cell.colSpan += next.colSpan;
+      next.remove();
+    } else {
+      const nextRow = table.rows[row.rowIndex + 1];
+      const index = Array.prototype.indexOf.call(row.cells, cell);
+      const next = nextRow?.cells[index];
+      if (!next) { setMessage({ type: 'error', text: 'Tidak ada sel di bawah untuk digabung.' }); return; }
+      cell.innerHTML += next.innerHTML ? `<br>${next.innerHTML}` : '';
+      cell.rowSpan += next.rowSpan;
+      next.remove();
+    }
+    setMessage({ type: 'success', text: 'Sel berhasil digabung. Gunakan Pisahkan sel untuk membatalkan penggabungan.' });
+  };
+
+  const splitTableCell = () => {
+    const cell = requireTableCell(); if (!cell) return;
+    const colspan = cell.colSpan; const rowspan = cell.rowSpan;
+    if (colspan === 1 && rowspan === 1) { setMessage({ type: 'error', text: 'Sel ini belum digabung.' }); return; }
+    const row = cell.parentElement as HTMLTableRowElement;
+    const table = cell.closest('table'); if (!table) return;
+    const originalContent = cell.innerHTML;
+    cell.colSpan = 1; cell.rowSpan = 1;
+    for (let c = 1; c < colspan; c++) {
+      const newCell = row.insertCell(cell.cellIndex + c);
+      newCell.innerHTML = '<br>'; newCell.style.cssText = cell.style.cssText;
+    }
+    for (let r = 1; r < rowspan; r++) {
+      const targetRow = table.rows[row.rowIndex + r];
+      if (targetRow) {
+        const newCell = targetRow.insertCell(Math.min(cell.cellIndex, targetRow.cells.length));
+        newCell.innerHTML = '<br>'; newCell.style.cssText = cell.style.cssText;
+      }
+    }
+    cell.innerHTML = originalContent;
+    setMessage({ type: 'success', text: 'Sel berhasil dipisahkan.' });
+  };
+
+  const deleteTable = () => {
+    const cell = requireTableCell(); if (!cell) return;
+    if (window.confirm('Hapus seluruh tabel ini?')) cell.closest('table')?.remove();
+    setTableContext(false);
+  };
+
+  const setTableCellBackground = () => {
+    const cell = requireTableCell(); if (!cell) return;
+    const color = window.prompt('Masukkan warna latar (contoh: #f1f5f9):', '#f1f5f9');
+    if (color && /^#[0-9a-f]{6}$/i.test(color.trim())) cell.style.backgroundColor = color.trim();
+    else if (color) setMessage({ type: 'error', text: 'Format warna tidak valid. Gunakan kode HEX, misalnya #f1f5f9.' });
   };
 
   const togglePreview = () => {
@@ -1189,6 +1461,23 @@ export const ArticleManagement: React.FC = () => {
             ))}
           </div>
 
+          {tableContext && !preview && (
+            <div role="toolbar" aria-label="Operasi tabel" className="flex flex-wrap items-center gap-2 rounded-md border border-blue-200 bg-blue-50 p-2">
+              <span className="px-1 text-xs font-semibold text-blue-900">Operasi tabel</span>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertTableRow('above')} className="rounded border bg-white px-2 py-1.5 text-xs hover:bg-blue-100">+ Baris atas</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertTableRow('below')} className="rounded border bg-white px-2 py-1.5 text-xs hover:bg-blue-100">+ Baris bawah</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertTableColumn('left')} className="rounded border bg-white px-2 py-1.5 text-xs hover:bg-blue-100">+ Kolom kiri</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertTableColumn('right')} className="rounded border bg-white px-2 py-1.5 text-xs hover:bg-blue-100">+ Kolom kanan</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => mergeTableCell('right')} className="rounded border bg-white px-2 py-1.5 text-xs hover:bg-blue-100">Gabung ke kanan</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => mergeTableCell('down')} className="rounded border bg-white px-2 py-1.5 text-xs hover:bg-blue-100">Gabung ke bawah</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={splitTableCell} className="rounded border bg-white px-2 py-1.5 text-xs hover:bg-blue-100">Pisahkan sel</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={deleteTableRow} className="rounded border bg-white px-2 py-1.5 text-xs text-red-700 hover:bg-red-50">Hapus baris</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={deleteTableColumn} className="rounded border bg-white px-2 py-1.5 text-xs text-red-700 hover:bg-red-50">Hapus kolom</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={setTableCellBackground} className="rounded border bg-white px-2 py-1.5 text-xs hover:bg-blue-100">Warna sel</button>
+              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={deleteTable} className="rounded border border-red-300 bg-white px-2 py-1.5 text-xs text-red-700 hover:bg-red-50">Hapus tabel</button>
+            </div>
+          )}
+
           {/* Editor tetap ter-mount agar isi tidak hilang saat pratinjau */}
           <div className={preview ? 'hidden' : ''}>
             <label id="editor-label" className="mb-1 block text-sm font-medium text-slate-800">
@@ -1201,11 +1490,36 @@ export const ArticleManagement: React.FC = () => {
               aria-labelledby="editor-label"
               contentEditable
               suppressContentEditableWarning
+              onPointerDown={startTableResize}
               onBlur={rememberSelection}
-              onKeyUp={rememberSelection}
-              onMouseUp={rememberSelection}
+              onFocus={() => {
+                // Terapkan font aktif sejak editor atau sel tabel menerima fokus.
+                ensureCaretFont(font);
+                rememberSelection();
+                updateTableContext();
+              }}
+              onBeforeInput={() => {
+                // Terapkan font sebelum karakter pertama diketik, termasuk pada sel kosong.
+                ensureCaretFont(font);
+              }}
+              onKeyUp={(event) => {
+                if (event.key === 'Enter') ensureCaretFont(font);
+                normalizeEditorFontMarkup();
+                rememberSelection();
+                updateTableContext();
+              }}
+              onMouseUp={() => {
+                rememberSelection();
+                updateTableContext();
+              }}
+              onClick={() => {
+                // Saat sel kosong diklik, caret langsung dibungkus font toolbar aktif.
+                ensureCaretFont(font);
+                rememberSelection();
+                updateTableContext();
+              }}
               style={{ fontFamily: font, fontSize: `${fontSize}px` }}
-              className="min-h-[32rem] w-full max-w-none overflow-auto rounded-md border border-slate-300 bg-white p-4 leading-relaxed text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/30 [&_a]:text-blue-700 [&_a]:underline [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-6 [&_td]:border [&_td]:border-slate-300 [&_ul]:list-disc [&_ul]:pl-6"
+              className="min-h-[32rem] w-full max-w-none overflow-auto rounded-md border border-slate-300 bg-white p-4 leading-relaxed text-slate-900 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/30 [&_a]:text-blue-700 [&_a]:underline [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-6 [&_td]:border [&_td]:border-slate-300 [&_td]:cursor-text [&_th]:border [&_th]:border-slate-300 [&_th]:cursor-text [&_table]:max-w-full [&_ul]:list-disc [&_ul]:pl-6"
             />
           </div>
 

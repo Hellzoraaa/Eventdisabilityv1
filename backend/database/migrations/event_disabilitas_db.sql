@@ -456,3 +456,8 @@ INSERT INTO article_settings (setting_key, setting_value) VALUES
 ('fonts', JSON_ARRAY('Arial','Georgia','Times New Roman','Verdana','Tahoma','Trebuchet MS','Courier New'))
 ON DUPLICATE KEY UPDATE setting_key = VALUES(setting_key);
 
+
+
+-- Mode publikasi event dan token undangan privat (aman dijalankan berulang).
+CALL sp_add_column_if_missing('training_proposals', 'publish_mode', "ENUM('public','private') NOT NULL DEFAULT 'public'");
+CALL sp_add_column_if_missing('training_proposals', 'invitation_token', 'VARCHAR(80) NULL');

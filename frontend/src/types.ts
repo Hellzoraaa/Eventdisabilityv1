@@ -116,6 +116,8 @@ export interface TrainingProposal {
   alasanPenolakan?: string;
   tanggalPersetujuan?: string;
   linkPendaftaran?: string;
+  publishMode?: 'public' | 'private';
+  invitationToken?: string;
   linkGrupWa?: string;
   kuotaDisetujui?: number;
   isAktif: boolean;

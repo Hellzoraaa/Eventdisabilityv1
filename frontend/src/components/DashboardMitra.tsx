@@ -228,6 +228,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
   const [editingProposalId, setEditingProposalId] = useState<string | null>(null);
   const [namaKegiatan, setNamaKegiatan] = useState('');
   const [jenisEvent, setJenisEvent] = useState('');
+  const [publishMode, setPublishMode] = useState<'public' | 'private'>('public');
   const [deskripsiPelatihan, setDeskripsiPelatihan] = useState('');
   const [fotoDokumentasiEvent, setFotoDokumentasiEvent] = useState<string[]>([]);
   const [fotoEventError, setFotoEventError] = useState('');
@@ -261,6 +262,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
   };
 
   const handleStartPerbaikiData = (proposal: TrainingProposal) => {
+    setPublishMode(proposal.publishMode === 'private' ? 'private' : 'public');
     setEditingProposalId(proposal.id);
     setNamaKegiatan(proposal.namaKegiatan);
     setJenisEvent(proposal.jenisEvent);
@@ -291,6 +293,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
   const handleResetForm = () => {
     setEditingProposalId(null);
     setNamaKegiatan('');
+    setPublishMode('public');
     setDeskripsiPelatihan('');
     setFotoDokumentasiEvent([]);
     setFotoEventError('');
@@ -398,6 +401,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
             persyaratan: persyaratanEvent,
             linkGrupWa: linkGrupWaEvent.trim(),
             kebutuhanPeserta,
+            publishMode,
           }),
         });
         const data = await res.json();
@@ -440,6 +444,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
             persyaratan: persyaratanEvent,
             linkGrupWa: linkGrupWaEvent.trim(),
             kebutuhanPeserta,
+            publishMode,
           }),
         });
         const data = await res.json();
@@ -534,7 +539,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-on-primary rounded-xl text-[13px] font-semibold shadow-sm transition-colors cursor-pointer"
             >
               <Icon name="add_circle" className="text-[18px]" />
-              Ajukan Permintaan Pelatihan
+              Daftarkan Event Baru
             </button>
             <button
               onClick={() => setActiveTab('ajukan_pendidikan')}
@@ -741,15 +746,15 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                       <div className="mt-5 p-5 rounded-xl bg-surface-container-low border border-primary/20 space-y-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div>
-                            <p className="text-[12px] font-bold text-on-surface uppercase tracking-wider mb-1">Link Pendaftaran Resmi Peserta:</p>
+                            <p className="text-[12px] font-bold text-on-surface uppercase tracking-wider mb-1">{prop.publishMode === 'private' ? 'Link Undangan Khusus Peserta:' : 'Link Pendaftaran Resmi Peserta:'}</p>
                             <p className="text-[13px] font-mono font-medium text-primary break-all">
-                              {prop.linkPendaftaran || window.location.origin + `/#daftar/${prop.id}`}
+                              {prop.linkPendaftaran || window.location.origin + (prop.publishMode === 'private' ? `/#undangan/${prop.invitationToken || ''}` : `/#daftar/${prop.id}`)}
                             </p>
                           </div>
 
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => copyToClipboard(prop.linkPendaftaran || window.location.origin + `/#daftar/${prop.id}`, prop.id)}
+                              onClick={() => copyToClipboard(prop.linkPendaftaran || window.location.origin + (prop.publishMode === 'private' ? `/#undangan/${prop.invitationToken || ''}` : `/#daftar/${prop.id}`), prop.id)}
                               className="inline-flex items-center gap-1.5 px-4 py-2 bg-surface-container-lowest hover:bg-surface-container border border-outline-variant rounded-xl text-[12px] font-semibold text-on-surface transition-colors cursor-pointer"
                             >
                               <Icon name={copiedId === prop.id ? 'check' : 'content_copy'} className="text-[16px]" />
@@ -758,7 +763,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
 
                             <a
                               href={`https://wa.me/?text=${encodeURIComponent(
-                                `Assalamu'alaikum Warahmatullahi Wabarakatuh.\n\nTelah dibuka pendaftaran pelatihan Al-Quran Disabilitas: *${prop.namaKegiatan}*.\n\n🗓️ Tanggal: ${prop.tanggalKegiatan}\n📍 Alamat: ${prop.lokasiDanAlamat}\n👥 Kuota: ${kuotaMax} peserta\n\nSilakan klik tautan resmi untuk mendaftar:\n${prop.linkPendaftaran || window.location.origin + '/#daftar/' + prop.id}`
+                                `Assalamu'alaikum Warahmatullahi Wabarakatuh.\n\nTelah dibuka pendaftaran pelatihan Al-Quran Disabilitas: *${prop.namaKegiatan}*.\n\n🗓️ Tanggal: ${prop.tanggalKegiatan}\n📍 Alamat: ${prop.lokasiDanAlamat}\n👥 Kuota: ${kuotaMax} peserta\n\nSilakan klik tautan resmi untuk mendaftar:\n${prop.linkPendaftaran || window.location.origin + (prop.publishMode === 'private' ? '/#undangan/' + (prop.invitationToken || '') : '/#daftar/' + prop.id)}`
                               )}`}
                               target="_blank"
                               rel="noreferrer"
@@ -860,6 +865,35 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
               <div className="request-field"><label>Link Grup WhatsApp (WAG)</label><input type="url" value={linkGrupWaEvent} onChange={e=>setLinkGrupWaEvent(e.target.value)} placeholder="https://chat.whatsapp.com/..." /><small>Dikirim ke peserta setelah berhasil mendaftar.</small></div>
               <BenefitPicker value={benefitEvent} onChange={setBenefitEvent} />
               <div className="request-field"><label>Batas Pendaftaran *</label><input required type="date" value={batasPendaftaranEvent} onChange={e=>setBatasPendaftaranEvent(e.target.value)} /></div>
+              <div className="request-field request-full">
+                <label>Jenis Publikasi Event *</label>
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    aria-pressed={publishMode === 'public'}
+                    onClick={() => setPublishMode('public')}
+                    className={`w-full rounded-lg border px-4 py-4 text-center font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#006316] ${
+                      publishMode === 'public'
+                        ? 'border-[#006316] bg-[#006316] text-white'
+                        : 'border-slate-300 bg-white text-slate-800 hover:border-[#006316]'
+                    }`}
+                  >
+                    Publish di Homepage
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={publishMode === 'private'}
+                    onClick={() => setPublishMode('private')}
+                    className={`w-full rounded-lg border px-4 py-4 text-center font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#006316] ${
+                      publishMode === 'private'
+                        ? 'border-[#006316] bg-[#006316] text-white'
+                        : 'border-slate-300 bg-white text-slate-800 hover:border-[#006316]'
+                    }`}
+                  >
+                    Publish Terbatas (Undangan)
+                  </button>
+                </div>
+              </div>
             </div>
             <div className="flex items-center justify-end gap-3 pt-5 border-t border-outline-variant/30"><button type="button" onClick={()=>{handleResetForm();setActiveTab('daftar')}} className="px-5 py-2.5 rounded-xl font-semibold hover:bg-surface-container">Batal</button><button type="submit" disabled={isSubmitting} className="px-6 py-2.5 bg-primary text-on-primary rounded-xl font-semibold disabled:opacity-50">{isSubmitting?'Mengirim Permintaan...':editingProposalId?'Kirim Revisi Permintaan Ulang':'Kirim'}</button></div>
           </form>

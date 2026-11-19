@@ -38,6 +38,7 @@ import { EventDetailPage, parseEventRoute } from './components/EventDetailPage.t
 import { TPQDetailPage, parseTPQRoute } from './components/TPQHomeSection.tsx';
 import { TestPage, parseTestRoute } from './components/TestPage.tsx';
 import { ArticleManagement } from './components/ArticleManagement.tsx';
+import { InvitationEventPage } from './components/InvitationEventPage.tsx';
 
 export default function App() {
   // Views: 'events' | 'mitra' | 'superadmin' | 'map' | 'users' | 'reports' | 'manage_events' | 'participants' | 'disabilities' | 'settings'
@@ -59,6 +60,7 @@ export default function App() {
     | 'articles'
   >('events');
   const [eventRoute, setEventRoute] = useState(() => parseEventRoute(window.location.hash));
+  const [invitationToken, setInvitationToken] = useState<string | null>(() => window.location.hash.match(/^#undangan\/([^/?#]+)/)?.[1] || null);
   const [tpqRoute, setTpqRoute] = useState(() => parseTPQRoute(window.location.hash));
   const [testRoute, setTestRoute] = useState(() => parseTestRoute(window.location.hash));
 
@@ -284,12 +286,14 @@ export default function App() {
 
     const handleHash = () => {
       const route = parseEventRoute(window.location.hash);
+      const invitation = window.location.hash.match(/^#undangan\/([^/?#]+)/);
+      setInvitationToken(invitation ? decodeURIComponent(invitation[1]) : null);
       const tpq = parseTPQRoute(window.location.hash);
       const test = parseTestRoute(window.location.hash);
       setEventRoute(route);
       setTpqRoute(tpq);
       setTestRoute(test);
-      if (route || tpq || test) setActiveView('events');
+      if (route || tpq || test || invitation) setActiveView('events');
     };
 
     handleHash();
@@ -528,6 +532,10 @@ export default function App() {
         key="splash"
       />
     );
+  }
+
+  if (activeView === 'events' && invitationToken) {
+    return <InvitationEventPage token={invitationToken} disabilities={disabilities} appSettings={appSettings} onRegisterSuccess={handleRegisterSuccess} />;
   }
 
   // Detail event ditampilkan sebagai halaman penuh, bukan modal/pop-up.
@@ -828,7 +836,7 @@ export default function App() {
                   >
                     <span>1. Event Pelatihan</span>
                     <span className="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary text-[10px] sm:text-[11px] font-bold">
-                      {proposals.filter(e => e.isAktif && e.status === 'disetujui').length}
+                      {proposals.filter(e => e.isAktif && e.status === 'disetujui' && String(e.publishMode || '').toLowerCase() !== 'private' && !e.invitationToken).length}
                     </span>
                   </button>
                   <button
