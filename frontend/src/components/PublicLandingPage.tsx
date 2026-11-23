@@ -1092,12 +1092,12 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                       />
                     </button>
                     {isEventTestOpen && (
-                      <div className="ml-3 pl-2 border-l-2 border-emerald-100">
+                      <div className="ml-3 w-[calc(100%-0.75rem)] min-w-0 pl-2 border-l-2 border-emerald-100 flex flex-col gap-1">
                         <button
                           type="button"
                           role="menuitem"
                           onClick={() => handleSelectTestFromEvent('pretest')}
-                          className="w-full px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                          className="w-full min-w-0 flex items-center px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                         >
                           Pretest
                         </button>
@@ -1105,7 +1105,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                           type="button"
                           role="menuitem"
                           onClick={() => handleSelectTestFromEvent('postest')}
-                          className="w-full px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                          className="w-full min-w-0 flex items-center px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
                         >
                           Postest
                         </button>
@@ -1403,18 +1403,18 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                       <Icon name={isEventTestOpen ? 'expand_less' : 'expand_more'} className="text-[18px]" />
                     </button>
                     {isEventTestOpen && (
-                      <div className="ml-3 pl-2 border-l-2 border-emerald-100 flex flex-col space-y-1">
+                      <div className="ml-3 w-[calc(100%-0.75rem)] min-w-0 pl-2 border-l-2 border-emerald-100 flex flex-col gap-1">
                         <button
                           type="button"
                           onClick={() => handleSelectTestFromEvent('pretest')}
-                          className="px-3 py-2 rounded-lg text-left text-[13.5px] hover:bg-slate-100 cursor-pointer"
+                          className="w-full min-w-0 flex items-center px-3 py-2 rounded-lg text-left text-[13.5px] hover:bg-slate-100 cursor-pointer touch-manipulation"
                         >
                           Pretest
                         </button>
                         <button
                           type="button"
                           onClick={() => handleSelectTestFromEvent('postest')}
-                          className="px-3 py-2 rounded-lg text-left text-[13.5px] hover:bg-slate-100 cursor-pointer"
+                          className="w-full min-w-0 flex items-center px-3 py-2 rounded-lg text-left text-[13.5px] hover:bg-slate-100 cursor-pointer touch-manipulation"
                         >
                           Postest
                         </button>

@@ -109,7 +109,7 @@ export const QuranNavMenu: React.FC<Props> = ({
 
   /* ---------------------------- MOBILE (accordion) ---------------------------- */
   if (variant === 'mobile') {
-    const row = 'flex items-center gap-2 px-3 py-2 rounded-lg text-left text-[13.5px] hover:bg-slate-100 cursor-pointer';
+    const row = 'w-full flex items-center gap-2 px-3 py-2.5 min-h-10 rounded-lg text-left text-[13.5px] hover:bg-slate-100 active:bg-slate-200 cursor-pointer touch-manipulation relative z-10';
     return (
       <div>
         <button
@@ -182,7 +182,7 @@ export const QuranNavMenu: React.FC<Props> = ({
 
   /* ------------------------- DESKTOP (dropdown melayang) ------------------------- */
   const item =
-    'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left transition-colors cursor-pointer text-slate-700 hover:bg-slate-50';
+    'w-full min-w-0 flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13.5px] font-semibold text-left transition-colors cursor-pointer text-slate-700 hover:bg-slate-50';
 
   return (
     <div ref={rootRef} className="relative">
@@ -228,7 +228,7 @@ export const QuranNavMenu: React.FC<Props> = ({
             <Chevron open={testOpen} />
           </button>
           {testOpen && (
-            <div className="ml-3 pl-2 border-l-2 border-emerald-100">
+            <div className="ml-3 w-[calc(100%-0.75rem)] min-w-0 pl-2 border-l-2 border-emerald-100 flex flex-col gap-1">
               <button type="button" role="menuitem" onClick={() => { onSelectTest('pretest'); done(); }} className={item}>
                 Pretest
               </button>
