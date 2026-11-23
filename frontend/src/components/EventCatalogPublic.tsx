@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from './Icon.tsx';
+import { isEventVisibleToPublic, isEventFinished } from '../utils/eventVisibility.ts';
 import { TrainingProposal, Participant, DisabilityMaster, EventCategory, TPQProgram } from '../types.ts';
 
 interface EventCatalogPublicProps {
@@ -26,7 +27,7 @@ export const EventCatalogPublic: React.FC<EventCatalogPublicProps> = ({
   eventCategories = [],
 }) => {
   const today = new Date().toISOString().slice(0, 10);
-  const activeEvents = events.filter(e => e.isAktif && e.status === 'disetujui' && String(e.publishMode || '').toLowerCase() !== 'private' && !e.invitationToken);
+  const activeEvents = events.filter(e => e.isAktif && e.status === 'disetujui' && isEventVisibleToPublic(e));
   // Izin publikasi adalah sumber utama visibilitas; jangan sembunyikan program hanya karena flag isAktif lama bernilai 0.
   const activeTPQPrograms = tpqPrograms.filter(p =>
     String(p.status ?? '').trim().toLowerCase() === 'disetujui' &&
@@ -315,6 +316,11 @@ export const EventCatalogPublic: React.FC<EventCatalogPublicProps> = ({
                     {eventDisability && (
                       <span className="px-2.5 py-1 bg-emerald-700/95 text-white backdrop-blur-sm rounded-full text-[10px] font-bold shadow-sm">
                         {eventDisability.nama}
+                      </span>
+                    )}
+                    {isEventFinished(event) && (
+                      <span className="px-2.5 py-1 bg-slate-800/95 text-white backdrop-blur-sm rounded-full text-[10px] font-bold uppercase shadow-sm">
+                        Sudah Selesai
                       </span>
                     )}
                   </div>

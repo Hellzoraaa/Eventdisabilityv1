@@ -1359,20 +1359,22 @@ app.get('/api/events', async (req, res) => {
   }
 });
 
-app.get('/api/events/invitation/:token', async (req, res) => {
+app.get('/api/events/invitation/slug/:slug', async (req, res) => {
   try {
     const pool = await getPool();
     await ensureEventPublicationColumns(pool);
+    const slugify = (value: unknown) => String(value || 'event').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const [rows] = await pool.query(
       `SELECT tp.*, u.name AS mitraName, u.organization_name AS mitraOrg, u.organization_logo AS userOrgLogo
        FROM training_proposals tp LEFT JOIN users u ON u.id=tp.mitra_id
-       WHERE tp.invitation_token=? AND tp.status='disetujui' AND tp.publish_mode='private' LIMIT 1`,
-      [String(req.params.token)]
+       WHERE tp.status='disetujui' AND tp.publish_mode='private'`
     );
-    if (!Array.isArray(rows) || !rows.length) return res.status(404).json({ error: 'Link undangan tidak valid atau event belum disetujui.' });
-    return res.json({ event: mapDbEvent(rows[0]) });
+    const matches = Array.isArray(rows) ? rows.filter((row: any) => slugify(row.nama_kegiatan || row.namaKegiatan || row.judul) === String(req.params.slug).toLowerCase()) : [];
+    if (!matches.length) return res.status(404).json({ error: 'Undangan tidak ditemukan atau event belum disetujui.' });
+    if (matches.length > 1) return res.status(409).json({ error: 'Nama event menghasilkan link yang sama. Ubah nama salah satu event agar slug unik.' });
+    return res.json({ event: mapDbEvent(matches[0]) });
   } catch (error) {
-    console.error('[Event invitation] error:', error);
+    console.error('[Event invitation slug] error:', error);
     return res.status(500).json({ error: 'Gagal membuka undangan.' });
   }
 });
@@ -1584,7 +1586,8 @@ app.post('/api/events/:id/approve', async (req, res) => {
       if (!Array.isArray(categoryRows) || !categoryRows.length) return res.status(400).json({ error: 'Kategori event tidak ditemukan atau tidak aktif. Periksa kembali kategori event sebelum persetujuan Event Terbatas.' });
     }
     const token = requestedPublishMode === 'private' ? crypto.randomBytes(24).toString('hex') : null;
-    const link = requestedPublishMode === 'private' ? `${frontendOrigin}/#undangan/${token}` : `${frontendOrigin}/#daftar/${id}`;
+    const eventSlug = String(event.namaKegiatan || 'event').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'event';
+    const link = requestedPublishMode === 'private' ? `${frontendOrigin}/#undangan/${eventSlug}/` : `${frontendOrigin}/#daftar/${id}`;
 
     await pool.query(
       `UPDATE training_proposals

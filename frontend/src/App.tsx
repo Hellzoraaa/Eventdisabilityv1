@@ -535,7 +535,7 @@ export default function App() {
   }
 
   if (activeView === 'events' && invitationToken) {
-    return <InvitationEventPage token={invitationToken} disabilities={disabilities} appSettings={appSettings} onRegisterSuccess={handleRegisterSuccess} />;
+    return <InvitationEventPage slug={invitationToken} disabilities={disabilities} appSettings={appSettings} onRegisterSuccess={handleRegisterSuccess} />;
   }
 
   // Detail event ditampilkan sebagai halaman penuh, bukan modal/pop-up.

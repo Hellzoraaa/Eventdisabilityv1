@@ -3,6 +3,7 @@ import { Icon } from './Icon.tsx';
 import { TrainingProposal, Participant, QuranCommunity, DisabilityMaster, EventCategory, User, ApplicationSettings, TPQProgram } from '../types.ts';
 import { QuranEmblemLogo } from './QuranEmblemLogo.tsx';
 import { PetaPersebaran } from './PetaPersebaran.tsx';
+import { isEventVisibleToPublic, isEventFinished } from '../utils/eventVisibility.ts';
 import { PartnerLogo } from './PartnerLogo.tsx';
 import { AnimatedCounter } from './AnimatedCounter.tsx';
 import { VerifiedBadge } from './VerifiedBadge.tsx';
@@ -287,7 +288,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
   }, [categoriesList]);
   const activeEvents = useMemo(() => {
     return events
-      .filter(e => (e.isAktif || e.status === 'disetujui') && String(e.publishMode || '').toLowerCase() !== 'private' && !e.invitationToken)
+      .filter(e => (e.isAktif || e.status === 'disetujui') && isEventVisibleToPublic(e))
       .map(ev => {
         // Resolve latest user data (organizationLogo and organizationName)
         const matchedUser = users.find(
@@ -1056,7 +1057,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                   <div
                     role="menu"
                     aria-label="Pilihan Event"
-                    className="absolute left-0 top-full mt-3 w-60 bg-white rounded-2xl p-2 shadow-2xl border border-slate-100 z-50 animate-in fade-in-50 zoom-in-95 text-slate-800"
+                    className="absolute left-0 top-full mt-3 w-60 max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain bg-white rounded-2xl p-2 shadow-2xl border border-slate-100 z-50 animate-in fade-in-50 zoom-in-95 text-slate-800"
                   >
                     {EVENT_TIPE_MENU.map(item => (
                       <button
@@ -1161,7 +1162,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                   <div
                     role="menu"
                     aria-label="Menu Artikel"
-                    className="absolute left-0 top-full mt-3 w-60 bg-white rounded-2xl p-2 shadow-2xl border border-slate-100 z-50 animate-in fade-in-50 zoom-in-95 text-slate-800"
+                    className="absolute left-0 top-full mt-3 w-60 max-h-[min(70vh,32rem)] overflow-y-auto overscroll-contain bg-white rounded-2xl p-2 shadow-2xl border border-slate-100 z-50 animate-in fade-in-50 zoom-in-95 text-slate-800"
                   >
                     <a
                       href={articleHref()}
@@ -1332,7 +1333,7 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
 
         {/* Mobile Navigation Dropdown Menu */}
         {isMobileNavOpen && (
-          <div className="min-[1300px]:hidden border-t border-slate-100 bg-white/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-lg text-slate-800">
+          <div className="pub-mobile-nav-scroll min-[1300px]:hidden border-t border-slate-100 bg-white/95 backdrop-blur-md px-4 py-4 space-y-3 shadow-lg text-slate-800">
             <div className="flex flex-col space-y-1 text-[14px] font-medium text-slate-700">
               <a
                 href="#tentang-kami"
@@ -1986,10 +1987,14 @@ export const PublicLandingPage: React.FC<PublicLandingPageProps> = ({
                 {/* Center: Event Details */}
                 <div className="flex-1 min-w-0">
                   {/* Status Badge */}
-                  <div className="flex items-center gap-2">
-                    {isRegistrationDeadlinePassed(event.batasPendaftaran) ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {isEventFinished(event) ? (
+                      <span className="inline-block px-3 py-0.5 rounded-full bg-slate-700 text-white text-[11px] font-bold tracking-wide">
+                        Sudah Selesai
+                      </span>
+                    ) : isRegistrationDeadlinePassed(event.batasPendaftaran) ? (
                       <span className="inline-block px-3 py-0.5 rounded-full bg-slate-500 text-white text-[11px] font-bold tracking-wide">
-                        Sudah Berakhir
+                        Pendaftaran Berakhir
                       </span>
                     ) : (
                       <span className="inline-block px-3 py-0.5 rounded-full bg-emerald-600 text-white text-[11px] font-bold tracking-wide">

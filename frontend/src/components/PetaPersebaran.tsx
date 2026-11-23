@@ -7,6 +7,7 @@ import {
   QuranCommunity
 } from '../types.ts';
 import { PartnerLogo } from './PartnerLogo.tsx';
+import { isEventVisibleToPublic, isEventFinished } from '../utils/eventVisibility.ts';
 import { VerifiedBadge } from './VerifiedBadge.tsx';
 import { EventDetailModal } from './EventDetailModal.tsx';
 import { isTPQMapId } from './TPQHomeSection.tsx';
@@ -210,7 +211,7 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
   // Active & Approved events from database that have valid geographic coordinates
   const activeEvents = useMemo(() => {
     return events.filter(
-      e => (e.isAktif || e.status === 'disetujui') && String(e.publishMode || '').toLowerCase() !== 'private' && !e.invitationToken &&
+      e => (e.isAktif || e.status === 'disetujui') && isEventVisibleToPublic(e) &&
            e.latitude !== undefined &&
            e.longitude !== undefined &&
            e.latitude !== null &&
@@ -450,8 +451,8 @@ export const PetaPersebaran: React.FC<PetaPersebaranProps> = ({
             <span class="w-1.5 h-1.5 rounded-full" style="background-color: ${pinColor}"></span>
             <span>${cat.nama}</span>
           </span>
-          <span class="px-2 py-0.5 rounded-full bg-[#006316] text-white text-[10px] font-bold">
-            Buka
+          <span class="px-2 py-0.5 rounded-full ${isEventFinished(ev) ? 'bg-slate-700' : 'bg-[#006316]'} text-white text-[10px] font-bold">
+            ${isEventFinished(ev) ? 'Sudah Selesai' : 'Buka'}
           </span>
         </div>
         <div class="font-extrabold text-[14px] text-slate-900 leading-snug mb-1">${ev.namaKegiatan}</div>

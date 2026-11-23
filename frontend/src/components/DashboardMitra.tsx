@@ -746,15 +746,19 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
                       <div className="mt-5 p-5 rounded-xl bg-surface-container-low border border-primary/20 space-y-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                           <div>
-                            <p className="text-[12px] font-bold text-on-surface uppercase tracking-wider mb-1">{prop.publishMode === 'private' ? 'Link Undangan Khusus Peserta:' : 'Link Pendaftaran Resmi Peserta:'}</p>
-                            <p className="text-[13px] font-mono font-medium text-primary break-all">
-                              {prop.linkPendaftaran || window.location.origin + (prop.publishMode === 'private' ? `/#undangan/${prop.invitationToken || ''}` : `/#daftar/${prop.id}`)}
+                            <p className="text-[12px] font-bold text-on-surface uppercase tracking-wider mb-1">{prop.publishMode === 'private' ? 'Tautan Undangan Peserta' : 'Tautan Pendaftaran Resmi'}</p>
+                            <p
+                              className="max-w-full truncate text-[13px] font-mono font-medium text-primary"
+                              title={(prop.publishMode === 'private' ? window.location.origin + `/#undangan/${String(prop.namaKegiatan || 'event').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}/` : `/#daftar/${prop.id}`)}
+                            >
+                              {(prop.publishMode === 'private' ? window.location.origin + `/#undangan/${String(prop.namaKegiatan || 'event').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}/` : `/#daftar/${prop.id}`)}
                             </p>
+                            <p className="mt-1 text-[11px] text-on-surface-variant">Link lengkap tetap tersalin saat tombol Salin Link digunakan.</p>
                           </div>
 
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => copyToClipboard(prop.linkPendaftaran || window.location.origin + (prop.publishMode === 'private' ? `/#undangan/${prop.invitationToken || ''}` : `/#daftar/${prop.id}`), prop.id)}
+                              onClick={() => copyToClipboard((prop.publishMode === 'private' ? window.location.origin + `/#undangan/${String(prop.namaKegiatan || 'event').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}/` : `/#daftar/${prop.id}`), prop.id)}
                               className="inline-flex items-center gap-1.5 px-4 py-2 bg-surface-container-lowest hover:bg-surface-container border border-outline-variant rounded-xl text-[12px] font-semibold text-on-surface transition-colors cursor-pointer"
                             >
                               <Icon name={copiedId === prop.id ? 'check' : 'content_copy'} className="text-[16px]" />
@@ -763,7 +767,7 @@ export const DashboardMitra: React.FC<DashboardMitraProps> = ({
 
                             <a
                               href={`https://wa.me/?text=${encodeURIComponent(
-                                `Assalamu'alaikum Warahmatullahi Wabarakatuh.\n\nTelah dibuka pendaftaran pelatihan Al-Quran Disabilitas: *${prop.namaKegiatan}*.\n\n🗓️ Tanggal: ${prop.tanggalKegiatan}\n📍 Alamat: ${prop.lokasiDanAlamat}\n👥 Kuota: ${kuotaMax} peserta\n\nSilakan klik tautan resmi untuk mendaftar:\n${prop.linkPendaftaran || window.location.origin + (prop.publishMode === 'private' ? '/#undangan/' + (prop.invitationToken || '') : '/#daftar/' + prop.id)}`
+                                `Assalamu'alaikum Warahmatullahi Wabarakatuh.\n\nTelah dibuka pendaftaran pelatihan Al-Quran Disabilitas: *${prop.namaKegiatan}*.\n\n🗓️ Tanggal: ${prop.tanggalKegiatan}\n📍 Alamat: ${prop.lokasiDanAlamat}\n👥 Kuota: ${kuotaMax} peserta\n\nSilakan klik tautan resmi untuk mendaftar:\n${(prop.publishMode === 'private' ? window.location.origin + `/#undangan/${String(prop.namaKegiatan || 'event').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')}/` : '/#daftar/' + prop.id)}`
                               )}`}
                               target="_blank"
                               rel="noreferrer"

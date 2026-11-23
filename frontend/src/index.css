@@ -90,6 +90,23 @@ code, kbd, samp, pre, .font-mono {
 .rich-content ul { list-style: disc; margin: 0.25em 0; padding-left: 1.4em; }
 .rich-content ol { list-style: decimal; margin: 0.25em 0; padding-left: 1.4em; }
 
+/* ---- Menu navigasi publik: dapat digulir tanpa memotong submenu ---- */
+.pub-mobile-nav-scroll {
+  max-height: calc(100vh - 5rem);
+  max-height: calc(100dvh - 5rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.pub-mobile-nav-scroll::-webkit-scrollbar { width: 7px; }
+.pub-mobile-nav-scroll::-webkit-scrollbar-track { background: transparent; }
+.pub-mobile-nav-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+.pub-mobile-nav-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
 /* ---- Navbar publik: tata letak stabil saat zoom in / zoom out di Chrome ----
    Zoom mengubah lebar viewport (dalam CSS px), sehingga menu bisa terhimpit atau pecah baris.
    Di lebar desktop (>= 1300px) ukuran dibuat fluid dan tidak boleh pecah baris; di bawah itu
