@@ -235,7 +235,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                         {event.namaKegiatan}
                       </h2>
                       <p className="text-[13px] text-cyan-100 font-medium mb-4 leading-relaxed">
-                        Diselenggarakan oleh Yayasan Tunanetra Indonesia Untuk Seluruh Masyarakat Indonesia.
+                        Diselenggarakan oleh {event.namaKegiatan} Untuk Seluruh Masyarakat Indonesia.
                       </p>
                     </div>
 
